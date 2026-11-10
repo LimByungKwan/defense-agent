@@ -723,6 +723,99 @@ export function createStudentView() {
       }
       return root;
     },
-    renderAction() { return '학생 구현 대기: 현재 사건·조치·실제 대상·사람 확인·ACK와 원천 효과·unknown을 구분하세요.'; },
+    renderAction({ status, event, actionId, target, receipt, observation, message, confirmationExpiresAt, error } = {}) {
+      const root = document.createElement('section');
+      const addText = (parent, tag, text) => {
+        const node = document.createElement(tag);
+        node.textContent = text;
+        parent.append(node);
+        return node;
+      };
+      const addActionId = (label, value) => {
+        if (typeof value === 'string' && value.length > 0) addText(root, 'p', `${label}: ${value}`);
+        else if (typeof value === 'number' && Number.isFinite(value)) addText(root, 'p', `${label}: ${value}`);
+      };
+      const resultLookup = () => addText(root, 'p', '결과를 판단하지 않습니다. 제공 화면의 「원천 결과만 재조회」를 눌러 결과를 확인하세요.');
+      const statusLabels = {
+        idle: '아직 미실행 (idle)',
+        loading: '조치 준비 또는 결과 조회 중 (loading). 처리 결과는 아직 확인되지 않았습니다.',
+        prepared: '준비됨·미실행 (prepared). 제공 화면의 「대상과 조치를 확인했으며 집행합니다」를 사람이 누르기 전에는 실행되지 않습니다.',
+        executing: '서버에 전달 중 (executing). 처리 결과는 아직 확인되지 않았습니다. 결과가 나올 때까지 집행 버튼을 다시 누르지 말고 「원천 결과만 재조회」로 확인하세요.',
+        pending: '서버 접수·처리 중 (pending). 서버가 받았다는 응답(ACK)은 효과 확인이 아니며, 처리 결과는 아직 확인되지 않았습니다. 결과가 나올 때까지 집행 버튼을 다시 누르지 말고 「원천 결과만 재조회」로 확인하세요.',
+        succeeded: '효과 확인 (succeeded)',
+        denied: '연동 시스템에서 거절 (denied)',
+        failed: '연동 시스템에서 실패 (failed)',
+        unknown: '결과 불명 (unknown). 효과 없음이나 성공으로 판단할 수 없습니다.',
+        expired: '확인 기한 지남 (expired). 다시 준비해야 합니다.',
+        error: '요청 처리 안 됨 (error)',
+      };
+      const knownStatus = typeof status === 'string' && Object.hasOwn(statusLabels, status) ? status : 'unknown';
+      const receiptMismatch = receipt != null && (receipt.eventId !== event?.id || receipt.actionId !== actionId);
+      const succeededWithObservation = status === 'succeeded'
+        && observation?.effectApplied === true
+        && typeof observation?.observedAt === 'string'
+        && typeof receipt?.receiptId === 'string'
+        && !receiptMismatch
+        && receipt?.superseded !== true;
+      const actionPreparationLabel = typeof actionId === 'string' && actionId.length > 0
+        ? `${actionId} 조치 준비`
+        : '조치 준비';
+      let needsLookup = false;
+
+      if (receiptMismatch) {
+        addText(root, 'p', '현재 사건·조치와 맞지 않는 결과입니다 (결과 불명)');
+        needsLookup = true;
+      } else if (status === 'succeeded') {
+        if (succeededWithObservation) {
+          addText(root, 'p', '효과 확인 (succeeded)');
+          addText(root, 'p', `관측 시각 (observation.observedAt): ${observation.observedAt}`);
+          addText(root, 'p', 'effectApplied: true');
+          addText(root, 'p', `접수 ID (receipt.receiptId): ${receipt.receiptId}`);
+        } else {
+          addText(root, 'p', '결과 불명 (unknown): 효과 확인 조건을 충족하지 않아 효과를 확정할 수 없습니다.');
+          needsLookup = true;
+        }
+      } else {
+        addText(root, 'p', statusLabels[knownStatus]);
+      }
+
+      if (knownStatus === 'prepared') {
+        addText(root, 'p', `확인 기한 (confirmationExpiresAt): ${typeof confirmationExpiresAt === 'string' ? confirmationExpiresAt : '확인 불가'}`);
+      }
+      if (knownStatus === 'denied' || knownStatus === 'failed') {
+        addText(root, 'p', `메시지: ${safeAiMessage(message)}`);
+      }
+      if (knownStatus === 'unknown') needsLookup = true;
+      if (knownStatus === 'expired') addText(root, 'p', `제공 화면의 AI 제안에서 「${actionPreparationLabel}」를 다시 누르세요.`);
+      if (knownStatus === 'error') {
+        addText(root, 'p', `오류 코드 (error.code): ${safeAiCode(error?.code)}`);
+        addText(root, 'p', `오류 메시지 (error.message): ${safeAiMessage(error?.message)}`);
+      }
+      if (receipt?.replayed === true) {
+        addText(root, 'p', '같은 요청(requestId)에 대한 기존 결과를 다시 받은 것입니다 (replayed: true). 조치를 한 번 더 실행한 것이 아닙니다.');
+      } else if (receipt?.replayed === false) {
+        addText(root, 'p', 'replayed: false');
+      }
+      if (receipt?.superseded === true) {
+        addText(root, 'p', '이후 결과가 바뀌어 대체되었습니다 (superseded). 결과 불명으로 처리합니다.');
+        needsLookup = true;
+      }
+      if (needsLookup) resultLookup();
+
+      addActionId('사건 ID (event.id)', event?.id);
+      if (Array.isArray(event?.evidence)) {
+        for (const evidence of event.evidence) addActionId('근거 ID (event.evidence.id)', evidence?.id);
+      }
+      addActionId('조치 ID (actionId)', actionId);
+      addActionId('실제 대상 ID (target.id)', target?.id);
+      addActionId('대상 세대 (target.generation)', target?.generation);
+      addActionId('요청 ID (receipt.requestId)', receipt?.requestId);
+      addActionId('접수 ID (receipt.receiptId)', receipt?.receiptId);
+      addActionId('영수증 버전 (receipt.version)', receipt?.version);
+
+      if (typeof event?.id === 'string' && event.id.length > 0) root.setAttribute('data-student-action-event', event.id);
+      if (!receiptMismatch && typeof receipt?.requestId === 'string' && receipt.requestId.length > 0) root.setAttribute('data-student-action-request', receipt.requestId);
+      return root;
+    },
   };
 }
