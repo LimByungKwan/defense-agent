@@ -391,6 +391,137 @@ export function createStudentView() {
         const message = typeof error?.message === 'string' ? error.message : '';
         return /timeout|time.?out|시간 초과/i.test(`${code} ${message}`);
       };
+
+      // ---------- 마무리: 한눈 요약(관제 대시보드형) ----------
+      // 받은 자료만 요약합니다. 확인하지 못한 것은 정상으로 바꾸지 않고 '확인 불가'로 둡니다.
+      const levelLabels = {
+        ok: '● 정상',
+        warn: '▲ 주의',
+        unknown: '? 확인 불가',
+        off: '○ 연결 안 함',
+        empty: '○ 없음',
+        loading: '… 불러오는 중',
+      };
+      const codeHints = {
+        ENGINE_NOT_CONNECTED: '회사 서버 미연결',
+        CONTRACT_MISMATCH: '응답 형식 확인 불가',
+        ENGINE_RESULT_UNVERIFIED: '서버 결과 확인 불가',
+      };
+      const modeKey = Object.hasOwn(modeLabels, mode) ? mode : 'unknown';
+      const connectionCard = modeKey === 'connected'
+        ? { level: 'ok', text: modeLabels.connected }
+        : modeKey === 'demo'
+          ? { level: 'warn', text: '예제 자료 (demo) · 실제 조회 결과 아님' }
+          : modeKey === 'disconnected'
+            ? { level: 'off', text: modeLabels.disconnected }
+            : { level: 'unknown', text: modeLabels.unknown };
+      const summarizeList = (resource, labels, warnKeys, okKey, emptyText, unit) => {
+        if (resource?.status === 'loading') return { level: 'loading', text: '조회 중입니다. 이전 값은 표시하지 않습니다.' };
+        if (resource?.status === 'error') {
+          const code = safeCode(resource.error?.code);
+          const hint = Object.hasOwn(codeHints, code) ? ` · ${codeHints[code]}` : '';
+          return { level: 'unknown', text: `${isTimeout(resource.error) ? '조회 시간 초과' : '조회 실패'} (${code})${hint}` };
+        }
+        if (resource?.status !== 'ok' || !Array.isArray(resource.data)) return { level: 'unknown', text: '상태를 확인할 수 없습니다.' };
+        if (resource.data.length === 0) return { level: 'empty', text: emptyText };
+        const states = resource.data.map(row => typeof row?.status === 'string' && Object.hasOwn(labels, row.status) ? row.status : 'unknown');
+        const warnCount = states.filter(state => warnKeys.includes(state)).length;
+        const unknownCount = states.filter(state => state === 'unknown').length;
+        if (warnCount > 0) return { level: 'warn', text: `확인 필요 ${warnCount}${unit} / 전체 ${states.length}${unit}` };
+        if (unknownCount > 0) return { level: 'unknown', text: `확인 불가 ${unknownCount}${unit} / 전체 ${states.length}${unit}` };
+        return { level: 'ok', text: `전체 ${states.length}${unit} ${labels[okKey]} (${okKey})` };
+      };
+      const deviceCard = summarizeList(devices, { compliant: '보안 기준 충족', noncompliant: '보안 기준 미충족', unknown: '확인 불가' }, ['noncompliant'], 'compliant', '등록된 기기가 없습니다.', '대');
+      const sessionCard = summarizeList(sessions, { active: '활성', expired: '만료', revoked: '철회됨', unknown: '확인 불가' }, ['expired', 'revoked'], 'active', '현재 연결이 없습니다.', '개');
+      const notificationCard = !Array.isArray(notifications)
+        ? { level: 'unknown', text: '알림 형식을 확인할 수 없습니다.' }
+        : notifications.length === 0
+          ? { level: 'ok', text: '주의할 알림이 없습니다.' }
+          : { level: 'warn', text: `알림 ${notifications.length}건 · 아래 알림 묶음 참고` };
+
+      const summaryBox = document.createElement('section');
+      summaryBox.setAttribute('aria-label', '보호 현황 한눈 요약');
+      summaryBox.dataset.studentSummaryBox = 'v1';
+      addText(summaryBox, 'h4', '한눈 요약');
+      const cardRow = document.createElement('div');
+      cardRow.style.display = 'grid';
+      cardRow.style.gridTemplateColumns = 'repeat(auto-fit, minmax(150px, 1fr))';
+      cardRow.style.gap = '8px';
+      for (const [label, card] of [['연결', connectionCard], ['기기', deviceCard], ['세션', sessionCard], ['알림', notificationCard]]) {
+        const box = document.createElement('div');
+        box.dataset.studentSummary = label;
+        box.dataset.studentLevel = card.level;
+        box.style.border = '1px solid var(--accent, #8a94a6)';
+        box.style.borderRadius = '10px';
+        box.style.padding = '10px 12px';
+        const name = addText(box, 'p', label);
+        name.style.margin = '0';
+        name.style.fontSize = '14px';
+        const level = addText(box, 'p', levelLabels[card.level]);
+        level.style.margin = '4px 0';
+        level.style.fontWeight = '700';
+        level.style.fontSize = '18px';
+        const detail = addText(box, 'p', card.text);
+        detail.style.margin = '0';
+        cardRow.append(box);
+      }
+      summaryBox.append(cardRow);
+
+      // 다음 행동: 지금 사용자가 무엇을 하면 되는지
+      const nextSteps = [];
+      if (modeKey === 'disconnected') {
+        nextSteps.push('회사 서버(기존 엔진)에 연결하지 않은 기본 실행입니다. 로그인·기기·세션·기록은 연결 전까지 확인 불가로 보이며, 앱 고장이 아닙니다. 실제 연결에는 담당자가 발급하는 설정이 필요합니다.');
+        nextSteps.push('이 상태에서도 위쪽 「내 PC 상태」의 「내 PC 확인」은 쓸 수 있습니다(제공 기능).');
+      } else if (modeKey === 'demo') {
+        nextSteps.push('지금 보이는 값은 예제 자료(demo)이며 실제 조회 결과가 아닙니다.');
+      } else if (modeKey === 'unknown') {
+        nextSteps.push('연결 상태를 확인할 수 없습니다. 위쪽 「다시 불러오기」 버튼을 직접 눌러 다시 조회하세요.');
+      }
+      const failedResources = [devices, sessions].filter(resource => resource?.status === 'error');
+      if (failedResources.some(resource => isTimeout(resource.error))) {
+        nextSteps.push('조회 시간 초과가 있었습니다. 위쪽 「다시 불러오기」 버튼을 직접 눌러 다시 조회하세요. 자동으로 다시 요청하지 않습니다.');
+      } else if (modeKey === 'connected' && failedResources.length > 0) {
+        nextSteps.push('불러오지 못한 자료가 있습니다. 위쪽 「다시 불러오기」 버튼을 직접 눌러 다시 조회하세요. 자동으로 다시 요청하지 않습니다.');
+      }
+      if (deviceCard.level === 'warn' || sessionCard.level === 'warn') {
+        nextSteps.push('확인이 필요한 기기 또는 세션이 있습니다. 아래 「상세 근거」를 펼쳐 어느 항목인지 확인하세요.');
+      }
+      if (nextSteps.length === 0) {
+        nextSteps.push('지금 따로 할 일은 없습니다. 새 값을 보려면 위쪽 「다시 불러오기」를 직접 누르세요.');
+      }
+      addText(summaryBox, 'h4', '다음 할 일');
+      const stepList = document.createElement('ul');
+      for (const step of nextSteps) addText(stepList, 'li', step);
+      summaryBox.append(stepList);
+
+      // 알림 묶음: 같은 코드·같은 메시지는 한 줄로 묶습니다(원문은 상세 근거에 그대로 남김).
+      if (Array.isArray(notifications) && notifications.length > 0) {
+        const grouped = new Map();
+        for (const notification of notifications) {
+          const code = safeCode(notification?.code);
+          const message = safeValue(notification?.message);
+          const key = `${code}\u0000${message}`;
+          if (!grouped.has(key)) grouped.set(key, { code, message, resources: [] });
+          grouped.get(key).resources.push(safeValue(notification?.resource));
+        }
+        addText(summaryBox, 'h4', `알림 묶음 (원문 ${notifications.length}건 → ${grouped.size}줄)`);
+        const groupList = document.createElement('ul');
+        for (const group of grouped.values()) {
+          const hint = Object.hasOwn(codeHints, group.code) ? ` · ${codeHints[group.code]}` : '';
+          addText(groupList, 'li', `${group.code}${hint} — 자료 ${group.resources.length}개(${group.resources.join(', ')}): ${group.message}`);
+        }
+        summaryBox.append(groupList);
+      }
+      addText(summaryBox, 'p', '요약은 아래 원문 자료로만 만들었습니다. 확인 불가는 정상이나 안전을 뜻하지 않습니다.');
+      root.append(summaryBox);
+
+      // 상세 근거: 기존 기기·세션·알림 원문 표시를 펼치기 안에 그대로 둡니다.
+      const detailBox = document.createElement('details');
+      detailBox.dataset.studentStatusDetail = 'v1';
+      const detailSummary = document.createElement('summary');
+      detailSummary.textContent = '상세 근거 펼치기 (등록 기기·세션·알림 원문)';
+      detailBox.append(detailSummary);
+
       const addResourceGroup = (title, resource, emptyText, retryText, renderData) => {
         const group = document.createElement('section');
         addText(group, 'h4', title);
@@ -410,7 +541,7 @@ export function createStudentView() {
         } else {
           addText(group, 'p', `확인 불가: ${title} 상태를 확인할 수 없습니다 (${safeValue(resource?.status)})`);
         }
-        root.append(group);
+        detailBox.append(group);
       };
 
       addResourceGroup('등록 기기', devices, '등록된 기기가 없습니다.', '다시 시도하려면 위쪽 「다시 불러오기」 버튼을 직접 누르세요.', (group, rows) => {
@@ -449,7 +580,7 @@ export function createStudentView() {
       } else {
         addText(sessionGroup, 'p', `확인 불가: 세션 상태를 확인할 수 없습니다 (${safeValue(sessions?.status)})`);
       }
-      root.append(sessionGroup);
+      detailBox.append(sessionGroup);
 
       const notificationGroup = document.createElement('section');
       addText(notificationGroup, 'h4', '알림');
@@ -468,7 +599,8 @@ export function createStudentView() {
         }
         notificationGroup.append(list);
       }
-      root.append(notificationGroup);
+      detailBox.append(notificationGroup);
+      root.append(detailBox);
 
       const diagnosticsGroup = document.createElement('section');
       addText(diagnosticsGroup, 'h4', '진단 정보');
