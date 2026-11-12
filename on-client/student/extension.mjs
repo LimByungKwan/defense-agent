@@ -289,11 +289,11 @@ const pcClock = (iso, withDate = false) => {
 // 응답을 기록 한 줄로 바꿉니다. 읽지 못한 값은 숫자 대신 이유를 남깁니다.
 // requestedAt 은 이 화면이 응답을 받은 시각(실패해서 잰 시각이 없을 때 구별용)입니다.
 function parsePcStatus(result) {
-  const record = { requestedAt: new Date().toISOString(), measuredAt: null, failure: null, cpu: null, memory: null, disk: null, firewall: null };
+  const record = { requestedAt: new Date().toISOString(), measuredAt: null, failure: null, cpu: null, memory: null, disk: null, firewall: null, network: null, events: null };
   const failAll = (code, message) => {
     record.failure = { code: safeAiCode(code), message: safeAiMessage(message) };
     const detail = `조회 실패: ${record.failure.message} (${record.failure.code})`;
-    record.cpu = record.memory = record.disk = record.firewall = { ok: false, reason: 'request_failed', detail };
+    record.cpu = record.memory = record.disk = record.firewall = record.network = record.events = { ok: false, reason: 'request_failed', detail };
     return record;
   };
   if (!result || result.ok !== true) {
@@ -304,7 +304,7 @@ function parsePcStatus(result) {
     return failAll('CONTRACT_MISMATCH', '응답 형식이 약속(aleph.on.pc-status.v1)과 달라 값을 확인할 수 없습니다.');
   }
   record.measuredAt = typeof data.measuredAt === 'string' && Number.isFinite(Date.parse(data.measuredAt)) ? data.measuredAt : null;
-  const { cpu, memory, disk, firewall } = data.metrics;
+  const { cpu, memory, disk, firewall, network, events } = data.metrics;
   const reasonOf = metric => metric?.state === 'ok' ? 'invalid_response' : typeof metric?.reason === 'string' ? metric.reason : 'invalid_response';
   record.cpu = cpu?.state === 'ok' && pcFinite(cpu.usagePercent) && cpu.usagePercent <= 100
     ? { ok: true, percent: cpu.usagePercent, sampleMs: pcFinite(cpu.sampleMs) ? cpu.sampleMs : null }
@@ -320,7 +320,64 @@ function parsePcStatus(result) {
   record.firewall = firewall?.state === 'ok' && read.every(profile => typeof profile?.enabled === 'boolean')
     ? { ok: true, profiles: FIREWALL_PROFILES.map(([name, label], index) => ({ name, label, enabled: read[index].enabled })) }
     : pcMissing(reasonOf(firewall));
+  // 3일차: 네트워크 구성(응답에 있는 숫자 두 개만)과 최근 24시간 Windows 기록 경고·오류 건수
+  const wholeCount = value => Number.isSafeInteger(value) && value >= 0;
+  record.network = network?.state === 'ok' && wholeCount(network.interfaceCount) && wholeCount(network.ipv4Count)
+    ? { ok: true, interfaces: network.interfaceCount, ipv4: network.ipv4Count }
+    : pcMissing(reasonOf(network));
+  record.events = events?.state === 'ok' && wholeCount(events.warningCount) && wholeCount(events.errorCount)
+    && typeof events.truncated === 'boolean' && typeof events.since === 'string' && Number.isFinite(Date.parse(events.since))
+    ? { ok: true, warnings: events.warningCount, errors: events.errorCount, truncated: events.truncated, sampleLimit: wholeCount(events.sampleLimit) ? events.sampleLimit : null, since: events.since }
+    : pcMissing(reasonOf(events));
   return record;
+}
+
+// ---------- 3일차: 연결과 기록(네트워크 구성 · Windows 기록) ----------
+const networkLevel = metric => `인터페이스 ${metric.interfaces}개 · IPv4 구성 ${metric.ipv4}개`;
+const eventsLevel = metric => `${metric.truncated ? '일부 집계 · ' : ''}경고 ${metric.warnings}건 · 오류 ${metric.errors}건`;
+const pcPermissionHint = metric => metric?.reason === 'permission_denied'
+  ? ' — 관리자 권한이 필요할 수 있습니다. 권한이나 설정을 바꾸지 않고 확인 불가로 둡니다.'
+  : '';
+
+function createNetworkCard() {
+  const latest = pcTrend.records[pcTrend.records.length - 1];
+  const metric = latest?.network;
+  let level = '– 아직 없음';
+  let text = '아직 잰 값이 없습니다. 「지금 측정」을 누르세요.';
+  if (metric?.ok) {
+    level = networkLevel(metric);
+    text = '루프백 제외. VPN·가상 어댑터가 포함될 수 있습니다. 이름·주소·유선/무선 구분은 응답에 없어 표시하지 않습니다.';
+  } else if (metric) {
+    level = '? 확인 불가';
+    text = pcReasonText(metric) + pcPermissionHint(metric);
+  }
+  const card = createPaperSummaryCard({ glyph: '⌬', name: '네트워크 구성', level, text });
+  card.dataset.studentPcMetric = 'network';
+  pcAddLine(card, '로컬 구성 요약이며 인터넷 접속이나 ZTNA 허용을 확인한 것은 아닙니다.', { fontSize: '14px', color: '#3d5373' });
+  pcAddLine(card, latest ? pcTimeLine(latest) : '잰 시각 없음', { fontSize: '14px', color: '#3d5373' });
+  if (pcTrend.busy) card.style.opacity = '0.6';
+  return card;
+}
+
+function createEventsCard() {
+  const latest = pcTrend.records[pcTrend.records.length - 1];
+  const metric = latest?.events;
+  let level = '– 아직 없음';
+  let text = '아직 잰 값이 없습니다. 「지금 측정」을 누르세요.';
+  if (metric?.ok) {
+    level = eventsLevel(metric);
+    text = `최근 24시간(${pcClock(metric.since, true)} 이후) System·Application 기록의 경고·오류 수입니다.`;
+    if (metric.truncated) text += ` 기록이 많아 최신 ${metric.sampleLimit ?? 5000}건만 셌습니다.`;
+  } else if (metric) {
+    level = '? 확인 불가';
+    text = pcReasonText(metric) + pcPermissionHint(metric);
+  }
+  const card = createPaperSummaryCard({ glyph: '☰', name: 'Windows 기록', level, text });
+  card.dataset.studentPcMetric = 'events';
+  pcAddLine(card, '오류 건수는 침해·공격 탐지 결과가 아닙니다.', { fontSize: '14px', fontWeight: '600', color: '#24446f' });
+  pcAddLine(card, latest ? pcTimeLine(latest) : '잰 시각 없음', { fontSize: '14px', color: '#3d5373' });
+  if (pcTrend.busy) card.style.opacity = '0.6';
+  return card;
 }
 
 // 숫자로 재는 세 값의 이름·단위·표시 방법(그래프가 있는 값)
@@ -479,17 +536,18 @@ function createPcTrendChartBox(definition) {
 function pcRecentText(record) {
   if (record.failure) return `${pcClock(record.requestedAt)} 측정 실패 · ${record.failure.code}`;
   const time = record.measuredAt ? pcClock(record.measuredAt) : `${pcClock(record.requestedAt)}(요청 시각)`;
-  const missing = [...PC_TREND_METRICS, { key: 'firewall', short: '방화벽' }]
+  const missing = [...PC_TREND_METRICS, { key: 'firewall', short: '방화벽' }, { key: 'network', short: '네트워크' }, { key: 'events', short: 'Windows 기록' }]
     .filter(definition => !record[definition.key]?.ok)
     .map(definition => `${definition.short}(${pcReasonCode(record[definition.key])})`);
-  return missing.length ? `${time} 일부 확인 불가 · ${missing.join(', ')}` : `${time} 측정 성공`;
+  const partial = record.events?.ok && record.events.truncated ? ' · Windows 기록 일부 집계' : '';
+  return missing.length ? `${time} 일부 확인 불가 · ${missing.join(', ')}${partial}` : `${time} 측정 성공${partial}`;
 }
 
 function createPcTrendTable() {
   const table = document.createElement('table');
   Object.assign(table.style, { width: '100%', borderCollapse: 'collapse', fontSize: '14px', marginTop: '8px' });
   const head = document.createElement('tr');
-  for (const label of ['잰 시각', 'CPU 사용률', '메모리 사용량', '디스크 남은 공간', 'Windows 방화벽']) {
+  for (const label of ['잰 시각', 'CPU 사용률', '메모리 사용량', '디스크 남은 공간', 'Windows 방화벽', '네트워크', 'Windows 기록(24시간)']) {
     const cell = document.createElement('th');
     cell.textContent = label;
     cell.scope = 'col';
@@ -507,6 +565,10 @@ function createPcTrendTable() {
       cells.push(metric?.ok ? definition.format(definition.value(metric)) : `확인 불가 — ${pcReasonText(metric)}`);
     }
     cells.push(record.firewall?.ok ? firewallLevel(record.firewall).replace(/^▲ /, '') : `확인 불가 — ${pcReasonText(record.firewall)}`);
+    cells.push(record.network?.ok ? `인터페이스 ${record.network.interfaces} · IPv4 ${record.network.ipv4}` : `확인 불가 — ${pcReasonText(record.network)}`);
+    cells.push(record.events?.ok
+      ? `경고 ${record.events.warnings} · 오류 ${record.events.errors}${record.events.truncated ? ' (일부 집계)' : ''}`
+      : `확인 불가 — ${pcReasonText(record.events)}`);
     for (const value of cells) {
       const cell = document.createElement('td');
       cell.textContent = value;
@@ -516,7 +578,11 @@ function createPcTrendTable() {
     tbody.append(row);
   }
   table.append(thead, tbody);
-  return table;
+  // 열이 많아 좁은 화면에서는 표만 가로로 스크롤합니다.
+  const scroller = document.createElement('div');
+  scroller.style.overflowX = 'auto';
+  scroller.append(table);
+  return scroller;
 }
 
 // 화면 갱신: 버튼·체크박스는 그대로 두고(키보드 위치 유지) 글자·카드·그래프·기록만 다시 만듭니다.
@@ -531,6 +597,7 @@ function updatePcTrend() {
   else if (pcTrend.auto) status += document.hidden ? ' 탭이 보이지 않아 자동 측정을 잠시 멈췄습니다.' : ` 자동 측정 켜짐: ${PC_TREND_INTERVAL_MS / 1000}초마다(이 탭이 보일 때만).`;
   ui.status.textContent = pcTrend.notice ? `${status} ${pcTrend.notice}` : status;
   ui.cards.replaceChildren(...PC_TREND_METRICS.map(createPcTrendCard), createFirewallCard());
+  ui.links.replaceChildren(createNetworkCard(), createEventsCard());
   ui.charts.replaceChildren(...PC_TREND_METRICS.map(createPcTrendChartBox));
   const latest = pcTrend.records[pcTrend.records.length - 1];
   ui.recent.textContent = `최근 결과: ${latest ? pcRecentText(latest) : '아직 측정하지 않았습니다.'}`;
@@ -621,6 +688,11 @@ function getPcTrendPanel() {
   status.setAttribute('aria-live', 'polite');
   const cards = document.createElement('div');
   Object.assign(cards.style, { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' });
+  // 3일차: 연결과 기록(네트워크 구성 · Windows 기록). SDP 서버 상태는 ② 에 따로 둡니다.
+  const linksTitle = document.createElement('h4');
+  linksTitle.textContent = '연결과 기록 (이 PC에서 잰 값)';
+  const links = document.createElement('div');
+  Object.assign(links.style, { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '8px' });
   const chartTitle = document.createElement('h4');
   chartTitle.textContent = `추이 그래프 (최근 ${PC_TREND_LIMIT}번, 오른쪽이 최신)`;
   const charts = document.createElement('div');
@@ -631,8 +703,8 @@ function getPcTrendPanel() {
   memoryNote.textContent = `기록은 이 화면 메모리에만 있고 새로고침하면 사라집니다(최근 ${PC_TREND_LIMIT}번까지). 그래프의 끊긴 점선 칸은 확인 불가입니다.`;
   Object.assign(memoryNote.style, { margin: '4px 0 8px', fontSize: '14px', color: '#3d5373' });
   const records = document.createElement('details');
-  panel.append(heading, basis, controls, status, cards, chartTitle, charts, recent, memoryNote, records);
-  pcTrend.ui = { panel, button, auto, status, cards, charts, recent, records };
+  panel.append(heading, basis, controls, status, cards, linksTitle, links, chartTitle, charts, recent, memoryNote, records);
+  pcTrend.ui = { panel, button, auto, status, cards, links, charts, recent, records };
   if (!pcTrend.listening) {
     pcTrend.listening = true;
     // 탭이 안 보이면 멈추고, 다시 보이면 다음 측정을 예약만 합니다(바로 조회하지 않음).
@@ -1146,13 +1218,16 @@ export function createStudentView({ api } = {}) {
         ENGINE_RESULT_UNVERIFIED: '서버 결과 확인 불가',
       };
       const modeKey = Object.hasOwn(modeLabels, mode) ? mode : 'unknown';
+      // 3일차: '연결' 카드를 'SDP 서버(회사 서버)' 카드로. 앱의 연결 모드만으로 판단하며 위 내 PC 조회와 섞지 않습니다.
+      const sdpText = '회사 서버 연결 상태입니다. 위 내 PC 조회 결과와 따로 판단합니다.';
       const connectionCard = modeKey === 'connected'
-        ? { level: 'ok', text: modeLabels.connected }
+        ? { level: 'ok', levelText: '연결됨 (connected)', text: sdpText }
         : modeKey === 'demo'
-          ? { level: 'warn', text: '예제 자료 (demo) · 실제 조회 결과 아님' }
+          ? { level: 'warn', levelText: '▲ 예제 자료 (demo)', text: `실제 조회 결과가 아닙니다. ${sdpText}` }
           : modeKey === 'disconnected'
-            ? { level: 'off', text: modeLabels.disconnected }
-            : { level: 'unknown', text: modeLabels.unknown };
+            ? { level: 'off', levelText: '○ SDP 미연결 (disconnected)', text: sdpText }
+            : { level: 'unknown', levelText: '? 확인 불가 (unknown)', text: sdpText };
+      connectionCard.title = 'SDP 서버(회사 서버)';
       const summarizeList = (resource, labels, warnKeys, okKey, emptyText, unit) => {
         if (resource?.status === 'loading') return { level: 'loading', text: '조회 중입니다. 이전 값은 표시하지 않습니다.' };
         if (resource?.status === 'error') {
@@ -1208,12 +1283,14 @@ export function createStudentView({ api } = {}) {
         });
         head.append(tile);
         box.append(head);
-        const name = addText(head, 'p', label);
+        // 화면 이름은 card.title 이 있으면 그것을 쓰고, data-student-summary 값(label)은 그대로 둡니다.
+        const name = addText(head, 'p', card.title ?? label);
         name.style.margin = '0';
         name.style.fontSize = '15px';
         name.style.fontWeight = '700';
         name.style.color = 'var(--accent, #0a58c2)';
-        const level = addText(box, 'p', levelLabels[card.level]);
+        name.style.wordBreak = 'keep-all';
+        const level = addText(box, 'p', card.levelText ?? levelLabels[card.level]);
         level.style.margin = '4px 0';
         level.style.fontWeight = '700';
         level.style.fontSize = '18px';
