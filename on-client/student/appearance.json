@@ -1,0 +1,7 @@
+{
+  "schema": "alekov.student-appearance.v1",
+  "appName": "마르셀 갈랑",
+  "icon": "brand-icon.png",
+  "startPicture": "start-picture.png",
+  "palette": { "accent": "#0a58c2", "background": "#eef5fd", "surface": "#ffffff" }
+}

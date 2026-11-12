@@ -26,8 +26,208 @@ const aiErrorGuidance = code => {
   return '오류 원인을 확인할 수 없습니다. 담당자에게 계정 연결과 앱 권한 확인을 요청하세요.';
 };
 
+// ---------- 마무리: 하늘 히어로 배너(정적, 움직임 없음) ----------
+// 상태 카드 맨 위의 장식 배너입니다. 왼쪽은 글자, 오른쪽은 종이비행기·종이 산·구름 그림입니다.
+// 그림은 모두 div 와 element.style(clipPath 등)로 그리며, 상태 글자와 겹치지 않는 별도 영역입니다.
+const HERO_NAVY = '#0d2b5e';
+
+const heroPiece = (parent, styles) => {
+  const piece = document.createElement('div');
+  Object.assign(piece.style, { position: 'absolute', ...styles });
+  parent.append(piece);
+  return piece;
+};
+
+// 종이비행기: 상자(가로세로 비율 고정) 안에 접힌 면 세 개를 다각형으로 그립니다.
+function heroPaperPlane(parent, box, tint = false) {
+  const plane = heroPiece(parent, {
+    aspectRatio: '16 / 9',
+    filter: 'drop-shadow(8px 12px 8px rgba(20, 70, 140, 0.18))',
+    ...box,
+  });
+  const face = (clipPath, background) => heroPiece(plane, { inset: '0', clipPath, background });
+  face('polygon(100% 0%, 20% 28%, 32% 70%)', tint ? '#c7dbf3' : '#d7e5f7');
+  face('polygon(100% 0%, 32% 70%, 40% 100%)', tint ? '#9dbbe3' : '#a9c3e6');
+  face('polygon(100% 0%, 0% 55%, 32% 70%)', tint ? '#eef5fd' : '#ffffff');
+  return plane;
+}
+
+// 각진 흰 종이 산: 밝은 면과 그늘진 면 두 개
+function heroMountain(parent, box) {
+  const mountain = heroPiece(parent, { aspectRatio: '2 / 1', ...box });
+  heroPiece(mountain, { inset: '0', clipPath: 'polygon(50% 0%, 0% 100%, 58% 100%)', background: 'linear-gradient(180deg, #ffffff, #eef4fc)' });
+  heroPiece(mountain, { inset: '0', clipPath: 'polygon(50% 0%, 58% 100%, 100% 100%)', background: 'linear-gradient(180deg, #d9e6f5, #c4d6ee)' });
+}
+
+function createSkyHero() {
+  const hero = document.createElement('div');
+  hero.dataset.studentHero = 'v1';
+  Object.assign(hero.style, {
+    position: 'relative',
+    overflow: 'hidden',
+    minHeight: '180px',
+    borderRadius: '16px',
+    marginBottom: '14px',
+    border: '1px solid #d6e6f7',
+    // 왼쪽(글자 쪽)은 아주 밝게, 오른쪽(그림 쪽)으로 갈수록 진한 하늘색
+    background: 'linear-gradient(100deg, #f6faff 0%, #e4f1fd 40%, #9fd0f6 72%, #3d8de6 100%)',
+  });
+
+  // 그림(읽지 않는 장식)
+  const art = heroPiece(hero, { top: '0', right: '0', bottom: '0', width: '58%', pointerEvents: 'none' });
+  art.setAttribute('aria-hidden', 'true');
+  heroPiece(art, { top: '-60px', right: '-40px', width: '220px', height: '220px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(255, 249, 232, 0.75) 0%, rgba(255, 249, 232, 0) 70%)' });
+  for (const [left, top, size] of [[18, 22, 4], [34, 12, 3], [52, 30, 4], [70, 16, 3], [86, 38, 4], [44, 48, 3]]) {
+    heroPiece(art, { left: `${left}%`, top: `${top}%`, width: `${size}px`, height: `${size}px`, borderRadius: '50%', background: '#ffffff', boxShadow: '0 0 6px 2px rgba(255, 255, 255, 0.7)' });
+  }
+  heroMountain(art, { right: '30%', bottom: '18px', width: '34%' });
+  heroMountain(art, { right: '6%', bottom: '14px', width: '24%' });
+  // 점선 비행 궤적
+  heroPiece(art, {
+    left: '12%', top: '30%', width: '34%', height: '34%',
+    border: '2px dashed rgba(255, 255, 255, 0.95)', borderColor: 'rgba(255, 255, 255, 0.95) transparent transparent rgba(255, 255, 255, 0.95)',
+    borderRadius: '50%', transform: 'rotate(-18deg)',
+  });
+  heroPaperPlane(art, { right: '8%', top: '10%', width: '36%' });
+  heroPaperPlane(art, { left: '6%', top: '14%', width: '10%' }, true);
+  // 아래쪽 뭉게구름
+  for (const [left, size, drop] of [[-4, 90, 40], [8, 70, 30], [20, 110, 52], [36, 80, 34], [48, 120, 58], [63, 90, 40], [76, 115, 54], [90, 85, 36]]) {
+    heroPiece(art, {
+      left: `${left}%`, bottom: `-${drop}px`, width: `${size}px`, height: `${size}px`, borderRadius: '50%',
+      background: 'radial-gradient(circle at 50% 30%, #ffffff 55%, #dbe8f6 100%)',
+    });
+  }
+
+  // 글자(그림과 겹치지 않는 왼쪽)
+  const text = document.createElement('div');
+  Object.assign(text.style, { position: 'relative', maxWidth: '46%', minWidth: '200px', padding: '26px 28px' });
+  const line = (content, styles) => {
+    const node = document.createElement('p');
+    node.textContent = content;
+    Object.assign(node.style, { margin: '0', ...styles });
+    text.append(node);
+  };
+  line('내 PC 보호 대시보드', { color: 'var(--accent, #0a58c2)', fontSize: '14px', fontWeight: '700', letterSpacing: '0.04em' });
+  line('보호 현황', { color: HERO_NAVY, fontSize: '32px', fontWeight: '800', lineHeight: '1.25', margin: '6px 0 8px' });
+  line('연결·기기·세션·알림을 한눈에', { color: '#24446f', fontSize: '16px' });
+  hero.append(text);
+  return hero;
+}
+
+// ---------- 마무리: 흰 종이 카드(내 카드 8칸 공통 스타일) ----------
+// 내가 돌려주는 요소 안에서만 element.style 로 꾸밉니다. 글자·속성·버튼 이름은 바꾸지 않습니다.
+// 버튼·입력칸·summary 는 제공 스타일(키보드 포커스 표시 포함)을 그대로 둡니다.
+// 흰 종이 카드: 가장 진한 바탕(#f1f7fe)에서도 본문·제목·상태 글자 대비 4.5 이상을 확인했습니다.
+const SKY_PAPER_TEXT_TAGS = 'h3, h4, p, ul, ol, details';
+const SKY_PAPER_RENDERERS = [
+  'renderIdentity', 'renderDecision', 'renderEvents', 'renderStatus',
+  'renderVulnerabilities', 'renderAiConnection', 'renderExplanation', 'renderAction',
+];
+const skyPaperPolished = new WeakSet();
+
+const styleSkyPaperText = node => {
+  const keepMargin = node.style.margin !== '' || node.style.marginTop !== '' || node.style.marginBottom !== '';
+  if (node.tagName === 'H3') {
+    // 진한 남색 제목 + 왼쪽 파란 막대
+    node.style.color = '#0d2b5e';
+    node.style.fontSize = '20px';
+    node.style.fontWeight = '800';
+    node.style.borderLeft = '4px solid var(--accent, #0a58c2)';
+    node.style.paddingLeft = '10px';
+    if (!keepMargin) node.style.margin = '0 0 12px';
+  } else if (node.tagName === 'H4') {
+    node.style.color = 'var(--accent, #0a58c2)';
+    node.style.fontSize = '16px';
+    if (!keepMargin) node.style.margin = '18px 0 6px';
+  } else if (!keepMargin) {
+    node.style.margin = '0 0 8px';
+  }
+};
+
+const polishSkyPaperTree = node => {
+  if (!(node instanceof Element)) return;
+  if (node.matches(SKY_PAPER_TEXT_TAGS)) styleSkyPaperText(node);
+  for (const child of node.querySelectorAll(SKY_PAPER_TEXT_TAGS)) styleSkyPaperText(child);
+};
+
+function applySkyPaper(root) {
+  if (skyPaperPolished.has(root)) return;
+  skyPaperPolished.add(root);
+  Object.assign(root.style, {
+    // 흰 종이 카드: 위쪽만 아주 옅은 하늘빛, 넓고 부드러운 파란 그림자
+    background: 'linear-gradient(180deg, #f1f7fe 0px, #ffffff 140px)',
+    border: '1px solid #d6e6f7',
+    borderRadius: '18px',
+    boxShadow: '0 12px 32px rgba(16, 76, 160, 0.10), 0 2px 6px rgba(16, 76, 160, 0.06)',
+    padding: '20px',
+    color: 'var(--text, #1c2430)',
+    fontSize: '16px',
+    lineHeight: '1.6',
+  });
+  for (const child of root.children) polishSkyPaperTree(child);
+  // 필터·상세 버튼으로 나중에 붙는 내용에도 같은 스타일을 입힙니다.
+  // childList·subtree 만 보므로 스타일(속성) 변경은 다시 관찰되지 않습니다.
+  if (typeof MutationObserver === 'function') {
+    const observer = new MutationObserver(records => {
+      for (const record of records) {
+        for (const added of record.addedNodes) polishSkyPaperTree(added);
+      }
+    });
+    observer.observe(root, { childList: true, subtree: true });
+  }
+}
+
+// 한눈 요약용 작은 흰 종이 카드. 앞의 아이콘은 장식이라 따로 span 에 넣고 화면 낭독기가 읽지 않게 합니다.
+function createPaperSummaryCard({ glyph, name, level, text }) {
+  const box = document.createElement('div');
+  Object.assign(box.style, {
+    background: '#ffffff',
+    border: '1px solid #d6e6f7',
+    borderRadius: '16px',
+    boxShadow: '0 8px 22px rgba(16, 76, 160, 0.10)',
+    padding: '14px',
+  });
+  const head = document.createElement('div');
+  Object.assign(head.style, { display: 'flex', alignItems: 'center', gap: '8px' });
+  const tile = document.createElement('span');
+  tile.setAttribute('aria-hidden', 'true');
+  tile.textContent = glyph;
+  Object.assign(tile.style, {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    width: '30px', height: '30px', borderRadius: '10px', flex: '0 0 auto',
+    background: 'linear-gradient(180deg, #e6f2fe, #d3e7fb)', color: 'var(--accent, #0a58c2)', fontSize: '16px',
+  });
+  const nameNode = document.createElement('p');
+  nameNode.textContent = name;
+  // 한국어 단어 중간에서 줄이 바뀌지 않게 띄어쓰기 단위로만 줄을 바꿉니다.
+  Object.assign(nameNode.style, { margin: '0', fontSize: '15px', fontWeight: '700', color: 'var(--accent, #0a58c2)', wordBreak: 'keep-all' });
+  head.append(tile, nameNode);
+  const levelNode = document.createElement('p');
+  levelNode.textContent = level;
+  Object.assign(levelNode.style, { margin: '6px 0 4px', fontSize: '18px', fontWeight: '700' });
+  const textNode = document.createElement('p');
+  textNode.textContent = text;
+  textNode.style.margin = '0';
+  box.append(head, levelNode, textNode);
+  return box;
+}
+
+// 8개 함수를 감쌉니다. 결과가 Element 일 때만 꾸미고, 글자·null 은 그대로 돌려주며 예외는 그대로 던집니다.
+function withSkyPaper(view) {
+  for (const name of SKY_PAPER_RENDERERS) {
+    const original = view[name];
+    if (typeof original !== 'function') continue;
+    view[name] = function skyPaperRender(...args) {
+      const output = original.apply(this, args);
+      if (output instanceof Element) applySkyPaper(output);
+      return output;
+    };
+  }
+  return view;
+}
+
 export function createStudentView() {
-  return {
+  return withSkyPaper({
     renderIdentity({ me, devices, sessions } = {}) {
       const root = document.createElement('section');
       const title = document.createElement('h3');
@@ -77,17 +277,111 @@ export function createStudentView() {
           addText(parent, 'p', `확인 불가: 상태를 확인할 수 없습니다 (${valueText(resource?.status)})`);
         }
       };
+      // 상세 근거: 기존 세 묶음 원문은 글자를 바꾸지 않고 이 펼치기 안에 둡니다.
+      const detailBox = document.createElement('details');
+      const detailSummary = document.createElement('summary');
+      detailSummary.textContent = '상세 근거 펼치기 (사용자·기기·세션 원문)';
+      detailBox.append(detailSummary);
       const addGroup = (label, resource, showData) => {
         const group = document.createElement('section');
         addText(group, 'h4', label);
         addMode(group, resource);
         addStatus(group, resource, showData);
-        root.append(group);
+        detailBox.append(group);
       };
       const formatState = (value, labels) => {
         const key = typeof value === 'string' && Object.hasOwn(labels, value) ? value : 'unknown';
         return `${labels[key]} (${key})`;
       };
+
+      // ---------- 마무리: 한눈 요약 → 다음 할 일 → 상세 근거 ----------
+      // 받은 자료만 요약합니다. 실패·확인 불가는 정상으로 바꾸지 않고 요약에도 그대로 보입니다.
+      const resources = [
+        { name: '로그인 사용자', glyph: '👤', resource: me },
+        { name: '기기 목록', glyph: '▭', resource: devices },
+        { name: '세션 목록', glyph: '⧗', resource: sessions },
+      ];
+      const errorLabel = resource => {
+        const code = resource?.error?.code;
+        return code === 'CONTRACT_MISMATCH' || code === 'ENGINE_RESULT_UNVERIFIED' ? '확인 불가' : '연결 실패';
+      };
+      const summarizeRows = (data, labels, warnKeys, okKey, emptyText, unit) => {
+        if (!Array.isArray(data)) return { level: '? 확인 불가', text: '자료 형식을 확인할 수 없습니다.' };
+        if (data.length === 0) return { level: '○ 없음', text: emptyText };
+        const states = data.map(row => typeof row?.status === 'string' && Object.hasOwn(labels, row.status) ? row.status : 'unknown');
+        const warnCount = states.filter(state => warnKeys.includes(state)).length;
+        const unknownCount = states.filter(state => state === 'unknown').length;
+        if (warnCount > 0) return { level: '▲ 주의', text: `확인 필요 ${warnCount}${unit} / 전체 ${states.length}${unit}` };
+        if (unknownCount > 0) return { level: '? 확인 불가', text: `확인 불가 ${unknownCount}${unit} / 전체 ${states.length}${unit}` };
+        return { level: '● 정상', text: `전체 ${states.length}${unit} ${labels[okKey]} (${okKey})` };
+      };
+      const okSummaries = {
+        '로그인 사용자': data => ({
+          level: typeof data?.user?.label === 'string' ? data.user.label : '? 확인 불가',
+          text: `기기 ${formatState(data?.device?.status, deviceLabels)} · 세션 ${formatState(data?.session?.status, sessionLabels)}`,
+        }),
+        '기기 목록': data => summarizeRows(data, deviceLabels, ['noncompliant'], 'compliant', '표시할 기기 정보가 없습니다.', '대'),
+        '세션 목록': data => summarizeRows(data, sessionLabels, ['expired', 'revoked'], 'active', '표시할 세션 정보가 없습니다.', '개'),
+      };
+      const summarizeResource = ({ name, resource }) => {
+        if (resource?.status === 'loading') return { level: '… 불러오는 중', text: '조회 중입니다. 이전 값은 표시하지 않습니다.' };
+        if (resource?.status === 'error') return { level: '? 확인 불가', text: errorLabel(resource) };
+        if (resource?.status === 'ok') return okSummaries[name](resource.data);
+        return { level: '? 확인 불가', text: '상태를 확인할 수 없습니다.' };
+      };
+
+      const summaryBox = document.createElement('section');
+      summaryBox.setAttribute('aria-label', '로그인 사용자·기기·세션 한눈 요약');
+      // 연결 모드: 셋이 같으면 한 번만, 다르면 각각 적습니다.
+      const modeKeys = resources.map(({ resource }) => resource && Object.hasOwn(modeLabels, resource.mode) ? resource.mode : 'unknown');
+      if (modeKeys.every(key => key === modeKeys[0])) {
+        addText(summaryBox, 'p', `연결 모드: ${modeLabels[modeKeys[0]]}`);
+      } else {
+        addText(summaryBox, 'p', `연결 모드: ${resources.map(({ name }, index) => `${name} ${modeLabels[modeKeys[index]]}`).join(' · ')}`);
+      }
+
+      addText(summaryBox, 'h4', '한눈 요약');
+      const cardRow = document.createElement('div');
+      Object.assign(cardRow.style, { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px' });
+      const summaries = resources.map(item => ({ ...item, ...summarizeResource(item) }));
+      for (const item of summaries) cardRow.append(createPaperSummaryCard(item));
+      summaryBox.append(cardRow);
+
+      // 실패 이유 묶기: 같은 구분·같은 메시지는 한 줄로(원문은 상세 근거에 그대로)
+      const failures = new Map();
+      for (const { name, resource } of resources) {
+        if (resource?.status !== 'error') continue;
+        const label = errorLabel(resource);
+        const message = safeAiMessage(typeof resource.error?.message === 'string' ? resource.error.message : '오류 메시지가 없습니다.');
+        const key = `${label}\u0000${message}`;
+        if (!failures.has(key)) failures.set(key, { label, message, names: [] });
+        failures.get(key).names.push(name);
+      }
+      if (failures.size > 0) {
+        const failedCount = [...failures.values()].reduce((sum, group) => sum + group.names.length, 0);
+        addText(summaryBox, 'h4', `실패 이유 (${failedCount}곳 → ${failures.size}줄)`);
+        const failureList = document.createElement('ul');
+        for (const group of failures.values()) addText(failureList, 'li', `${group.label} (${group.names.join('·')}): ${group.message}`);
+        summaryBox.append(failureList);
+      }
+
+      // 다음 할 일
+      const nextSteps = [];
+      if (modeKeys.includes('disconnected')) {
+        nextSteps.push('회사 서버(기존 엔진)에 연결하지 않은 기본 실행이라 사용자·기기·세션이 확인 불가로 보입니다. 앱 고장이 아닙니다. 실제 연결에는 담당자가 발급하는 설정이 필요합니다.');
+      } else if (failures.size > 0) {
+        nextSteps.push('불러오지 못한 자료가 있습니다. 위쪽 「다시 불러오기」 버튼을 직접 눌러 다시 조회하세요. 자동으로 다시 요청하지 않습니다.');
+      }
+      if (modeKeys.includes('demo')) nextSteps.push('지금 보이는 값은 예제 자료(demo)이며 실제 조회 결과가 아닙니다.');
+      if (modeKeys.includes('unknown') && !modeKeys.includes('disconnected')) nextSteps.push('연결 상태를 확인할 수 없습니다. 위쪽 「다시 불러오기」 버튼을 직접 눌러 다시 조회하세요.');
+      if (summaries.some(item => item.level === '▲ 주의')) nextSteps.push('확인이 필요한 기기 또는 세션이 있습니다. 아래 「상세 근거」를 펼쳐 어느 항목인지 확인하세요.');
+      if (nextSteps.length === 0) nextSteps.push('지금 따로 할 일은 없습니다. 새 값을 보려면 위쪽 「다시 불러오기」를 직접 누르세요.');
+      addText(summaryBox, 'h4', '다음 할 일');
+      const stepList = document.createElement('ul');
+      for (const step of nextSteps) addText(stepList, 'li', step);
+      summaryBox.append(stepList);
+      addText(summaryBox, 'p', '요약은 아래 원문 자료로만 만들었습니다. 확인 불가는 정상이나 안전을 뜻하지 않습니다.');
+      root.append(summaryBox);
 
       addGroup('현재 로그인 사용자·기기·세션', me, (group, data) => {
         addText(group, 'p', `사용자: ${valueText(data?.user?.label)} (ID: ${valueText(data?.user?.id)})`);
@@ -125,6 +419,7 @@ export function createStudentView() {
         group.append(list);
       });
 
+      root.append(detailBox);
       return root;
     },
     renderDecision({ status, mode, data, error, appId } = {}) {
@@ -442,6 +737,8 @@ export function createStudentView() {
       const summaryBox = document.createElement('section');
       summaryBox.setAttribute('aria-label', '보호 현황 한눈 요약');
       summaryBox.dataset.studentSummaryBox = 'v1';
+      // 정적 하늘 히어로 배너(장식 그림 + 제목). 상태 글자는 이 아래에 그대로 있습니다.
+      summaryBox.append(createSkyHero());
       addText(summaryBox, 'h4', '한눈 요약');
       const cardRow = document.createElement('div');
       cardRow.style.display = 'grid';
@@ -451,12 +748,30 @@ export function createStudentView() {
         const box = document.createElement('div');
         box.dataset.studentSummary = label;
         box.dataset.studentLevel = card.level;
-        box.style.border = '1px solid var(--accent, #8a94a6)';
-        box.style.borderRadius = '10px';
-        box.style.padding = '10px 12px';
-        const name = addText(box, 'p', label);
+        // 흰 종이 카드 느낌(글자·기호는 그대로, 흰 바탕이라 대비 충분)
+        box.style.background = '#ffffff';
+        box.style.border = '1px solid #d6e6f7';
+        box.style.borderRadius = '16px';
+        box.style.boxShadow = '0 8px 22px rgba(16, 76, 160, 0.10)';
+        box.style.padding = '14px';
+        // 이름 앞의 옅은 하늘색 둥근 타일(장식, 상태 기호와 헷갈리지 않는 모양)
+        const head = document.createElement('div');
+        Object.assign(head.style, { display: 'flex', alignItems: 'center', gap: '8px' });
+        const tile = document.createElement('span');
+        tile.setAttribute('aria-hidden', 'true');
+        tile.textContent = { 연결: '⇄', 기기: '▭', 세션: '⧗', 알림: '✉' }[label] ?? '';
+        Object.assign(tile.style, {
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          width: '30px', height: '30px', borderRadius: '10px',
+          background: 'linear-gradient(180deg, #e6f2fe, #d3e7fb)', color: 'var(--accent, #0a58c2)', fontSize: '16px',
+        });
+        head.append(tile);
+        box.append(head);
+        const name = addText(head, 'p', label);
         name.style.margin = '0';
-        name.style.fontSize = '14px';
+        name.style.fontSize = '15px';
+        name.style.fontWeight = '700';
+        name.style.color = 'var(--accent, #0a58c2)';
         const level = addText(box, 'p', levelLabels[card.level]);
         level.style.margin = '4px 0';
         level.style.fontWeight = '700';
@@ -1076,5 +1391,5 @@ export function createStudentView() {
       if (!receiptMismatch && typeof receipt?.requestId === 'string' && receipt.requestId.length > 0) root.setAttribute('data-student-action-request', receipt.requestId);
       return root;
     },
-  };
+  });
 }
