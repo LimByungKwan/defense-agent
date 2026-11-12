@@ -109,7 +109,7 @@ function createSkyHero() {
   };
   line('내 PC 보호 대시보드', { color: 'var(--accent, #0a58c2)', fontSize: '14px', fontWeight: '700', letterSpacing: '0.04em' });
   line('보호 현황', { color: HERO_NAVY, fontSize: '32px', fontWeight: '800', lineHeight: '1.25', margin: '6px 0 8px' });
-  line('연결·기기·세션·알림을 한눈에', { color: '#24446f', fontSize: '16px' });
+  line('내 PC 추이와 회사 서버 연결을 한눈에', { color: '#24446f', fontSize: '16px' });
   hero.append(text);
   return hero;
 }
@@ -127,6 +127,8 @@ const skyPaperPolished = new WeakSet();
 
 const styleSkyPaperText = node => {
   const keepMargin = node.style.margin !== '' || node.style.marginTop !== '' || node.style.marginBottom !== '';
+  // 색을 직접 정한 제목(구역 제목 등)은 덮어쓰지 않습니다.
+  if ((node.tagName === 'H3' || node.tagName === 'H4') && node.style.color !== '') return;
   if (node.tagName === 'H3') {
     // 진한 남색 제목 + 왼쪽 파란 막대
     node.style.color = '#0d2b5e';
@@ -212,9 +214,34 @@ function createPaperSummaryCard({ glyph, name, level, text }) {
   return box;
 }
 
-// ---------- 2일차: 내 PC 추이(최근 측정 기록·작은 선 그래프·이전 값과의 차이) ----------
+// ---------- 구역 제목(① 내 PC 추이 / ② 회사 서버 연결 요약을 확실히 나눔) ----------
+// 색을 직접 정한 제목이라 공통 종이 카드 스타일이 덮어쓰지 않습니다.
+function createSectionTitle(text, caption) {
+  const wrap = document.createElement('div');
+  Object.assign(wrap.style, {
+    margin: '24px 0 12px',
+    padding: '10px 14px',
+    borderTop: '3px solid var(--accent, #0a58c2)',
+    borderRadius: '0 0 12px 12px',
+    background: 'linear-gradient(90deg, #e6f2fe 0%, #ffffff 100%)',
+  });
+  const title = document.createElement('h4');
+  title.textContent = text;
+  Object.assign(title.style, { color: '#0d2b5e', fontSize: '20px', fontWeight: '800', margin: '0' });
+  wrap.append(title);
+  if (caption) {
+    const note = document.createElement('p');
+    note.textContent = caption;
+    Object.assign(note.style, { margin: '2px 0 0', fontSize: '14px', color: '#24446f' });
+    wrap.append(note);
+  }
+  return wrap;
+}
+
+// ---------- 2일차: 내 PC 추이(상태 카드 4개 → 추이 그래프 → 최근 결과 → 측정 기록) ----------
 // [제공 기능] 값을 재는 방법(src/pc-status.mjs)과 조회 경로·중복 방지(public/app.js 의 requestStudentPc).
-// [내가 만든 부분] 최근 20번 기록, 선 그래프, 이전 값과의 차이, 단위·시각 표시, 확인 불가 이유 안내, 측정 버튼과 자동 측정.
+// [내가 만든 부분] 최근 20번 기록, 선 그래프, 이전 값과의 차이, 방화벽 카드, 최근 결과 한 줄, 단위·시각 표시,
+//                  확인 불가 이유 안내, 측정 버튼과 자동 측정.
 // 조회는 사용자가 버튼을 누르거나 자동 측정을 직접 켰을 때만 합니다. 실패하면 자동 측정을 끄고 다시 시도하지 않습니다.
 // 기록은 이 화면 메모리에만 둡니다(새로고침하면 사라짐). 예시 값은 쓰지 않습니다.
 const PC_TREND_PATH = '/api/pc/status';
@@ -230,6 +257,7 @@ const PC_REASON_LABELS = {
   permission_denied: '권한 없음',
   unsupported: '이 운영체제에서 지원하지 않음',
 };
+const FIREWALL_PROFILES = [['Domain', '도메인'], ['Private', '개인'], ['Public', '공용']];
 const pcTrend = {
   api: null,
   records: [],
@@ -243,24 +271,29 @@ const pcTrend = {
 
 const pcFinite = value => typeof value === 'number' && Number.isFinite(value) && value >= 0;
 const pcMissing = reason => ({ ok: false, reason });
+const pcReasonCode = metric => metric?.reason === 'request_failed' ? 'request_failed' : safeAiCode(metric?.reason);
 const pcReasonText = metric => {
-  if (metric.reason === 'request_failed') return metric.detail;
-  const code = safeAiCode(metric.reason);
+  if (metric?.reason === 'request_failed') return metric.detail;
+  const code = pcReasonCode(metric);
   return `${Object.hasOwn(PC_REASON_LABELS, code) ? PC_REASON_LABELS[code] : '알 수 없는 이유'} (${code})`;
 };
-const pcTimeText = (iso, withDate = false) => {
-  if (typeof iso !== 'string' || !Number.isFinite(Date.parse(iso))) return '잰 시각 확인 불가';
+// 시각은 브라우저 언어 설정과 상관없이 22:10:35(날짜 포함이면 2026-11-12 22:10:35)로 통일합니다. 이 PC의 현지 시각입니다.
+const pcClock = (iso, withDate = false) => {
+  if (typeof iso !== 'string' || !Number.isFinite(Date.parse(iso))) return '시각 확인 불가';
   const date = new Date(iso);
-  return withDate ? date.toLocaleString('ko-KR') : date.toLocaleTimeString('ko-KR');
+  const two = number => String(number).padStart(2, '0');
+  const time = `${two(date.getHours())}:${two(date.getMinutes())}:${two(date.getSeconds())}`;
+  return withDate ? `${date.getFullYear()}-${two(date.getMonth() + 1)}-${two(date.getDate())} ${time}` : time;
 };
 
 // 응답을 기록 한 줄로 바꿉니다. 읽지 못한 값은 숫자 대신 이유를 남깁니다.
+// requestedAt 은 이 화면이 응답을 받은 시각(실패해서 잰 시각이 없을 때 구별용)입니다.
 function parsePcStatus(result) {
-  const record = { measuredAt: null, failure: null, cpu: null, memory: null, disk: null };
+  const record = { requestedAt: new Date().toISOString(), measuredAt: null, failure: null, cpu: null, memory: null, disk: null, firewall: null };
   const failAll = (code, message) => {
     record.failure = { code: safeAiCode(code), message: safeAiMessage(message) };
     const detail = `조회 실패: ${record.failure.message} (${record.failure.code})`;
-    record.cpu = record.memory = record.disk = { ok: false, reason: 'request_failed', detail };
+    record.cpu = record.memory = record.disk = record.firewall = { ok: false, reason: 'request_failed', detail };
     return record;
   };
   if (!result || result.ok !== true) {
@@ -271,24 +304,29 @@ function parsePcStatus(result) {
     return failAll('CONTRACT_MISMATCH', '응답 형식이 약속(aleph.on.pc-status.v1)과 달라 값을 확인할 수 없습니다.');
   }
   record.measuredAt = typeof data.measuredAt === 'string' && Number.isFinite(Date.parse(data.measuredAt)) ? data.measuredAt : null;
-  const { cpu, memory, disk } = data.metrics;
-  const reasonOf = metric => typeof metric?.reason === 'string' ? metric.reason : 'invalid_response';
+  const { cpu, memory, disk, firewall } = data.metrics;
+  const reasonOf = metric => metric?.state === 'ok' ? 'invalid_response' : typeof metric?.reason === 'string' ? metric.reason : 'invalid_response';
   record.cpu = cpu?.state === 'ok' && pcFinite(cpu.usagePercent) && cpu.usagePercent <= 100
     ? { ok: true, percent: cpu.usagePercent, sampleMs: pcFinite(cpu.sampleMs) ? cpu.sampleMs : null }
-    : pcMissing(cpu?.state === 'ok' ? 'invalid_response' : reasonOf(cpu));
+    : pcMissing(reasonOf(cpu));
   record.memory = memory?.state === 'ok' && pcFinite(memory.usedBytes) && pcFinite(memory.totalBytes) && memory.totalBytes > 0 && memory.usedBytes <= memory.totalBytes
     ? { ok: true, used: memory.usedBytes, total: memory.totalBytes }
-    : pcMissing(memory?.state === 'ok' ? 'invalid_response' : reasonOf(memory));
+    : pcMissing(reasonOf(memory));
   record.disk = disk?.state === 'ok' && pcFinite(disk.freeBytes) && pcFinite(disk.totalBytes) && disk.totalBytes > 0 && disk.freeBytes <= disk.totalBytes
     ? { ok: true, free: disk.freeBytes, total: disk.totalBytes }
-    : pcMissing(disk?.state === 'ok' ? 'invalid_response' : reasonOf(disk));
+    : pcMissing(reasonOf(disk));
+  const profiles = Array.isArray(firewall?.profiles) ? firewall.profiles : [];
+  const read = FIREWALL_PROFILES.map(([name]) => profiles.find(profile => profile?.name === name));
+  record.firewall = firewall?.state === 'ok' && read.every(profile => typeof profile?.enabled === 'boolean')
+    ? { ok: true, profiles: FIREWALL_PROFILES.map(([name, label], index) => ({ name, label, enabled: read[index].enabled })) }
+    : pcMissing(reasonOf(firewall));
   return record;
 }
 
-// 세 값의 이름·단위·표시 방법
+// 숫자로 재는 세 값의 이름·단위·표시 방법(그래프가 있는 값)
 const PC_TREND_METRICS = [
   {
-    key: 'cpu', name: 'CPU 사용률', glyph: '◔',
+    key: 'cpu', name: 'CPU 사용률', short: 'CPU', glyph: '◔', scaleLabel: '%, 0~100',
     value: metric => metric.percent,
     format: value => `${value.toFixed(1)} %`,
     detail: metric => metric.sampleMs ? `${(metric.sampleMs / 1000).toFixed(1)}초 동안 잰 평균` : '짧은 표본으로 잰 평균',
@@ -296,7 +334,7 @@ const PC_TREND_METRICS = [
     scaleMax: () => 100,
   },
   {
-    key: 'memory', name: '메모리 사용량', glyph: '▤',
+    key: 'memory', name: '메모리 사용량', short: '메모리', glyph: '▤', scaleLabel: 'GiB, 0~전체',
     value: metric => metric.used / GIB,
     format: value => `${value.toFixed(1)} GiB`,
     detail: metric => `전체 ${(metric.total / GIB).toFixed(1)} GiB 중 ${((metric.used / metric.total) * 100).toFixed(1)} % 사용`,
@@ -304,7 +342,7 @@ const PC_TREND_METRICS = [
     scaleMax: metric => metric.total / GIB,
   },
   {
-    key: 'disk', name: '디스크 남은 공간', glyph: '◫',
+    key: 'disk', name: '디스크 남은 공간', short: '디스크', glyph: '◫', scaleLabel: 'GiB, 0~전체',
     value: metric => metric.free / GIB,
     format: value => `${value.toFixed(1)} GiB`,
     detail: metric => `전체 ${(metric.total / GIB).toFixed(1)} GiB · 앱 폴더가 있는 드라이브`,
@@ -313,17 +351,85 @@ const PC_TREND_METRICS = [
   },
 ];
 
+// 방화벽 요약: 꺼진 쪽이 있으면 어느 쪽인지 함께 적습니다. '정상'이라고 쓰지 않습니다.
+const firewallLevel = metric => {
+  const off = metric.profiles.filter(profile => !profile.enabled);
+  if (off.length === 0) return `켜짐 ${metric.profiles.length}/${metric.profiles.length}`;
+  return `▲ 꺼짐 있음 (${off.length}/${metric.profiles.length}) · ${off.map(profile => `${profile.label}(${profile.name})`).join(', ')} 꺼짐`;
+};
+const firewallDetail = metric => metric.profiles.map(profile => `${profile.label}(${profile.name}) ${profile.enabled ? '켜짐' : '꺼짐'}`).join(' · ');
+
+const pcTimeLine = record => record.measuredAt
+  ? `잰 시각 ${pcClock(record.measuredAt)} · 이 PC에서 잰 값`
+  : `잰 시각 없음 (요청 ${pcClock(record.requestedAt)})`;
+
+const pcAddLine = (card, text, styles) => {
+  const node = document.createElement('p');
+  node.textContent = text;
+  Object.assign(node.style, { margin: '6px 0 0', ...styles });
+  card.append(node);
+  return node;
+};
+
+function createPcTrendCard(definition) {
+  const records = pcTrend.records;
+  const latest = records[records.length - 1];
+  const previous = records[records.length - 2];
+  const metric = latest?.[definition.key];
+  let level = '– 아직 없음';
+  let text = '아직 잰 값이 없습니다. 「지금 측정」을 누르세요.';
+  if (metric?.ok) {
+    level = definition.format(definition.value(metric));
+    text = definition.detail(metric);
+  } else if (metric) {
+    level = '? 확인 불가';
+    text = pcReasonText(metric);
+  }
+  const card = createPaperSummaryCard({ glyph: definition.glyph, name: definition.name, level, text });
+  card.dataset.studentPcMetric = definition.key;
+  if (latest) {
+    let diffText = '이전 값 없음 (첫 측정)';
+    const before = previous?.[definition.key];
+    if (previous && metric?.ok && before?.ok) diffText = `이전 대비 ${definition.diff(definition.value(metric) - definition.value(before))}`;
+    else if (previous) diffText = '이전 대비 비교 불가 (이전 또는 지금 값이 확인 불가)';
+    pcAddLine(card, diffText, { fontWeight: '600', color: '#24446f' });
+  }
+  pcAddLine(card, latest ? pcTimeLine(latest) : '잰 시각 없음', { fontSize: '14px', color: '#3d5373' });
+  if (pcTrend.busy) card.style.opacity = '0.6';
+  return card;
+}
+
+function createFirewallCard() {
+  const latest = pcTrend.records[pcTrend.records.length - 1];
+  const metric = latest?.firewall;
+  let level = '– 아직 없음';
+  let text = '아직 잰 값이 없습니다. 「지금 측정」을 누르세요.';
+  if (metric?.ok) {
+    level = firewallLevel(metric);
+    text = firewallDetail(metric);
+  } else if (metric) {
+    level = '? 확인 불가';
+    text = pcReasonText(metric);
+  }
+  const card = createPaperSummaryCard({ glyph: '⛨', name: 'Windows 방화벽', level, text });
+  card.dataset.studentPcMetric = 'firewall';
+  pcAddLine(card, '켜짐은 방화벽 설정 상태일 뿐, PC가 안전하다는 판정은 아닙니다.', { fontSize: '14px', color: '#3d5373' });
+  pcAddLine(card, latest ? pcTimeLine(latest) : '잰 시각 없음', { fontSize: '14px', color: '#3d5373' });
+  if (pcTrend.busy) card.style.opacity = '0.6';
+  return card;
+}
+
 // 작은 선 그래프(SVG). 확인 불가 칸은 0으로 그리지 않고 선을 끊고 옅은 점선만 둡니다.
 function createPcTrendChart(definition) {
   const NS = 'http://www.w3.org/2000/svg';
-  const W = 200, H = 56, P = 5;
+  const W = 200, H = 64, P = 5;
   const svg = document.createElementNS(NS, 'svg');
   svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
   svg.setAttribute('preserveAspectRatio', 'none');
   svg.setAttribute('aria-hidden', 'true');
   svg.setAttribute('focusable', 'false');
   Object.assign(svg.style, {
-    display: 'block', width: '100%', height: '56px', margin: '10px 0 6px',
+    display: 'block', width: '100%', height: '64px', margin: '6px 0 0',
     background: 'linear-gradient(180deg, #f3f8fe, #ffffff)', border: '1px solid #e1edf9', borderRadius: '10px',
   });
   const records = pcTrend.records;
@@ -359,46 +465,31 @@ function createPcTrendChart(definition) {
   return svg;
 }
 
-function createPcTrendCard(definition) {
-  const records = pcTrend.records;
-  const latest = records[records.length - 1];
-  const previous = records[records.length - 2];
-  const metric = latest?.[definition.key];
-  let level = '– 아직 없음';
-  let text = '아직 잰 값이 없습니다. 「지금 측정」을 누르세요.';
-  if (metric?.ok) {
-    level = definition.format(definition.value(metric));
-    text = definition.detail(metric);
-  } else if (metric) {
-    level = '? 확인 불가';
-    text = pcReasonText(metric);
-  }
-  const card = createPaperSummaryCard({ glyph: definition.glyph, name: definition.name, level, text });
-  card.dataset.studentPcMetric = definition.key;
-  if (latest) {
-    let diffText = '이전 값 없음 (첫 측정)';
-    const before = previous?.[definition.key];
-    if (previous && metric?.ok && before?.ok) diffText = `이전 대비 ${definition.diff(definition.value(metric) - definition.value(before))}`;
-    else if (previous) diffText = '이전 대비 비교 불가 (이전 또는 지금 값이 확인 불가)';
-    const diff = document.createElement('p');
-    diff.textContent = diffText;
-    Object.assign(diff.style, { margin: '6px 0 0', fontWeight: '600', color: '#24446f' });
-    card.append(diff);
-  }
-  card.append(createPcTrendChart(definition));
-  const time = document.createElement('p');
-  time.textContent = latest ? `잰 시각 ${pcTimeText(latest.measuredAt)} · 이 PC에서 잰 값` : '잰 시각 없음';
-  Object.assign(time.style, { margin: '0', fontSize: '14px', color: '#3d5373' });
-  card.append(time);
-  if (pcTrend.busy) card.style.opacity = '0.6';
-  return card;
+function createPcTrendChartBox(definition) {
+  const box = document.createElement('div');
+  Object.assign(box.style, { background: '#ffffff', border: '1px solid #d6e6f7', borderRadius: '14px', padding: '10px 12px' });
+  const label = document.createElement('p');
+  label.textContent = `${definition.name} (${definition.scaleLabel})`;
+  Object.assign(label.style, { margin: '0', fontSize: '14px', fontWeight: '700', color: 'var(--accent, #0a58c2)' });
+  box.append(label, createPcTrendChart(definition));
+  return box;
+}
+
+// 최근 결과 한 줄: "22:10:35 측정 성공" / "22:11:55 일부 확인 불가 · CPU(invalid_sample)" / "22:11:19 측정 실패 · TIMEOUT"
+function pcRecentText(record) {
+  if (record.failure) return `${pcClock(record.requestedAt)} 측정 실패 · ${record.failure.code}`;
+  const time = record.measuredAt ? pcClock(record.measuredAt) : `${pcClock(record.requestedAt)}(요청 시각)`;
+  const missing = [...PC_TREND_METRICS, { key: 'firewall', short: '방화벽' }]
+    .filter(definition => !record[definition.key]?.ok)
+    .map(definition => `${definition.short}(${pcReasonCode(record[definition.key])})`);
+  return missing.length ? `${time} 일부 확인 불가 · ${missing.join(', ')}` : `${time} 측정 성공`;
 }
 
 function createPcTrendTable() {
   const table = document.createElement('table');
   Object.assign(table.style, { width: '100%', borderCollapse: 'collapse', fontSize: '14px', marginTop: '8px' });
   const head = document.createElement('tr');
-  for (const label of ['잰 시각', 'CPU 사용률', '메모리 사용량', '디스크 남은 공간']) {
+  for (const label of ['잰 시각', 'CPU 사용률', '메모리 사용량', '디스크 남은 공간', 'Windows 방화벽']) {
     const cell = document.createElement('th');
     cell.textContent = label;
     cell.scope = 'col';
@@ -410,11 +501,12 @@ function createPcTrendTable() {
   const tbody = document.createElement('tbody');
   for (const record of [...pcTrend.records].reverse()) {
     const row = document.createElement('tr');
-    const cells = [pcTimeText(record.measuredAt, true)];
+    const cells = [record.measuredAt ? pcClock(record.measuredAt, true) : `잰 시각 없음 (요청 ${pcClock(record.requestedAt, true)})`];
     for (const definition of PC_TREND_METRICS) {
       const metric = record[definition.key];
       cells.push(metric?.ok ? definition.format(definition.value(metric)) : `확인 불가 — ${pcReasonText(metric)}`);
     }
+    cells.push(record.firewall?.ok ? firewallLevel(record.firewall).replace(/^▲ /, '') : `확인 불가 — ${pcReasonText(record.firewall)}`);
     for (const value of cells) {
       const cell = document.createElement('td');
       cell.textContent = value;
@@ -427,7 +519,7 @@ function createPcTrendTable() {
   return table;
 }
 
-// 화면 갱신: 버튼·체크박스는 그대로 두고(키보드 위치 유지) 글자·카드·기록만 다시 만듭니다.
+// 화면 갱신: 버튼·체크박스는 그대로 두고(키보드 위치 유지) 글자·카드·그래프·기록만 다시 만듭니다.
 function updatePcTrend() {
   const ui = pcTrend.ui;
   if (!ui) return;
@@ -438,7 +530,10 @@ function updatePcTrend() {
   if (pcTrend.busy) status = '측정 중입니다. 아래 카드는 이전 측정값이며 새 값이 아닙니다.';
   else if (pcTrend.auto) status += document.hidden ? ' 탭이 보이지 않아 자동 측정을 잠시 멈췄습니다.' : ` 자동 측정 켜짐: ${PC_TREND_INTERVAL_MS / 1000}초마다(이 탭이 보일 때만).`;
   ui.status.textContent = pcTrend.notice ? `${status} ${pcTrend.notice}` : status;
-  ui.cards.replaceChildren(...PC_TREND_METRICS.map(createPcTrendCard));
+  ui.cards.replaceChildren(...PC_TREND_METRICS.map(createPcTrendCard), createFirewallCard());
+  ui.charts.replaceChildren(...PC_TREND_METRICS.map(createPcTrendChartBox));
+  const latest = pcTrend.records[pcTrend.records.length - 1];
+  ui.recent.textContent = `최근 결과: ${latest ? pcRecentText(latest) : '아직 측정하지 않았습니다.'}`;
   ui.records.replaceChildren();
   const summary = document.createElement('summary');
   summary.textContent = `측정 기록 펼치기 (${pcTrend.records.length}번, 최신 먼저)`;
@@ -493,7 +588,7 @@ async function measurePcTrend() {
   updatePcTrend();
 }
 
-// 패널은 모듈에 하나만 만들고, renderStatus 가 다시 불리면 같은 요소를 새 화면에 옮겨 붙입니다(기록 유지).
+// ① 구역 전체를 모듈에 하나만 만들고, renderStatus 가 다시 불리면 같은 요소를 새 화면에 옮겨 붙입니다(기록 유지).
 function getPcTrendPanel() {
   if (pcTrend.ui) {
     updatePcTrend();
@@ -502,10 +597,9 @@ function getPcTrendPanel() {
   const panel = document.createElement('section');
   panel.dataset.studentPcTrend = 'v1';
   panel.setAttribute('aria-label', '내 PC 추이');
-  const title = document.createElement('h4');
-  title.textContent = '내 PC 추이 (이 PC에서 잰 값)';
+  const heading = createSectionTitle('① 내 PC 추이 · 이 PC에서 잰 값', '회사 서버 없이도 이 PC에서 직접 잽니다.');
   const basis = document.createElement('p');
-  basis.textContent = '근거: 제공 「내 PC 상태」와 같은 조회(/api/pc/status)를 씁니다. 값을 재는 방법은 제공 기능이고, 기록·그래프·이전 값과의 차이는 내가 만든 부분입니다. 예시 값은 쓰지 않으며, 읽지 못한 값은 0이 아니라 확인 불가와 이유로 보여 줍니다.';
+  basis.textContent = '근거: 제공 「내 PC 상태」와 같은 조회(/api/pc/status)를 씁니다. 값을 재는 방법은 제공 기능이고, 기록·그래프·이전 값과의 차이·방화벽 요약은 내가 만든 부분입니다. 예시 값은 쓰지 않으며, 읽지 못한 값은 0이 아니라 확인 불가와 이유로 보여 줍니다.';
   const controls = document.createElement('div');
   Object.assign(controls.style, { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', margin: '4px 0 8px' });
   const button = document.createElement('button');
@@ -527,12 +621,18 @@ function getPcTrendPanel() {
   status.setAttribute('aria-live', 'polite');
   const cards = document.createElement('div');
   Object.assign(cards.style, { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' });
+  const chartTitle = document.createElement('h4');
+  chartTitle.textContent = `추이 그래프 (최근 ${PC_TREND_LIMIT}번, 오른쪽이 최신)`;
+  const charts = document.createElement('div');
+  Object.assign(charts.style, { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' });
+  const recent = document.createElement('p');
+  Object.assign(recent.style, { margin: '12px 0 4px', fontWeight: '700', color: '#0d2b5e' });
   const memoryNote = document.createElement('p');
   memoryNote.textContent = `기록은 이 화면 메모리에만 있고 새로고침하면 사라집니다(최근 ${PC_TREND_LIMIT}번까지). 그래프의 끊긴 점선 칸은 확인 불가입니다.`;
-  Object.assign(memoryNote.style, { margin: '8px 0', fontSize: '14px', color: '#3d5373' });
+  Object.assign(memoryNote.style, { margin: '4px 0 8px', fontSize: '14px', color: '#3d5373' });
   const records = document.createElement('details');
-  panel.append(title, basis, controls, status, cards, memoryNote, records);
-  pcTrend.ui = { panel, button, auto, status, cards, records };
+  panel.append(heading, basis, controls, status, cards, chartTitle, charts, recent, memoryNote, records);
+  pcTrend.ui = { panel, button, auto, status, cards, charts, recent, records };
   if (!pcTrend.listening) {
     pcTrend.listening = true;
     // 탭이 안 보이면 멈추고, 다시 보이면 다음 측정을 예약만 합니다(바로 조회하지 않음).
@@ -1010,6 +1110,12 @@ export function createStudentView({ api } = {}) {
         : '확인 불가';
       const modeLabel = Object.hasOwn(modeLabels, mode) ? modeLabels[mode] : modeLabels.unknown;
       addText(root, 'h3', '상태·알림·도움정보');
+      // 정적 하늘 히어로 배너(장식 그림 + 제목)
+      root.append(createSkyHero());
+      // ① 내 PC 추이: 집에서도 실제로 동작하는 쪽이라 위에 둡니다(같은 패널을 옮겨 붙여 기록 유지).
+      root.append(getPcTrendPanel());
+      // ② 회사 서버 연결 요약
+      root.append(createSectionTitle('② 회사 서버 연결 요약', '회사 서버에 연결하지 않은 기본 실행이면 아래 값은 확인 불가로 보이는 것이 정상입니다.'));
       addText(root, 'p', `연결 모드: ${modeLabel}`);
 
       const deviceLabels = { compliant: '보안 기준 충족', noncompliant: '보안 기준 미충족', unknown: '확인 불가' };
@@ -1074,8 +1180,6 @@ export function createStudentView({ api } = {}) {
       const summaryBox = document.createElement('section');
       summaryBox.setAttribute('aria-label', '보호 현황 한눈 요약');
       summaryBox.dataset.studentSummaryBox = 'v1';
-      // 정적 하늘 히어로 배너(장식 그림 + 제목). 상태 글자는 이 아래에 그대로 있습니다.
-      summaryBox.append(createSkyHero());
       addText(summaryBox, 'h4', '한눈 요약');
       const cardRow = document.createElement('div');
       cardRow.style.display = 'grid';
@@ -1118,14 +1222,12 @@ export function createStudentView({ api } = {}) {
         cardRow.append(box);
       }
       summaryBox.append(cardRow);
-      // 2일차: 상태 카드 아래 내 PC 추이(같은 패널을 옮겨 붙여 기록을 유지)
-      summaryBox.append(getPcTrendPanel());
 
       // 다음 행동: 지금 사용자가 무엇을 하면 되는지
       const nextSteps = [];
       if (modeKey === 'disconnected') {
         nextSteps.push('회사 서버(기존 엔진)에 연결하지 않은 기본 실행입니다. 로그인·기기·세션·기록은 연결 전까지 확인 불가로 보이며, 앱 고장이 아닙니다. 실제 연결에는 담당자가 발급하는 설정이 필요합니다.');
-        nextSteps.push('이 상태에서도 위쪽 「내 PC 상태」의 「내 PC 확인」은 쓸 수 있습니다(제공 기능).');
+        nextSteps.push('이 상태에서도 위 「내 PC 추이」의 「지금 측정」은 쓸 수 있습니다.');
       } else if (modeKey === 'demo') {
         nextSteps.push('지금 보이는 값은 예제 자료(demo)이며 실제 조회 결과가 아닙니다.');
       } else if (modeKey === 'unknown') {
