@@ -107,7 +107,7 @@ function createSkyHero() {
     Object.assign(node.style, { margin: '0', ...styles });
     text.append(node);
   };
-  line('내 PC 보호 대시보드', { color: 'var(--accent, #0a58c2)', fontSize: '14px', fontWeight: '700', letterSpacing: '0.04em' });
+  line('내 PC 보호 대시보드', { color: 'var(--accent, #0a58c2)', fontSize: '16px', fontWeight: '700', letterSpacing: '0.04em' });
   line('보호 현황', { color: HERO_NAVY, fontSize: '32px', fontWeight: '800', lineHeight: '1.25', margin: '6px 0 8px' });
   line('내 PC 추이와 회사 서버 연결을 한눈에', { color: '#24446f', fontSize: '16px' });
   hero.append(text);
@@ -118,7 +118,7 @@ function createSkyHero() {
 // 내가 돌려주는 요소 안에서만 element.style 로 꾸밉니다. 글자·속성·버튼 이름은 바꾸지 않습니다.
 // 버튼·입력칸·summary 는 제공 스타일(키보드 포커스 표시 포함)을 그대로 둡니다.
 // 흰 종이 카드: 가장 진한 바탕(#f1f7fe)에서도 본문·제목·상태 글자 대비 4.5 이상을 확인했습니다.
-const SKY_PAPER_TEXT_TAGS = 'h3, h4, p, ul, ol, details';
+const SKY_PAPER_TEXT_TAGS = 'h3, h4, p, ul, ol, details, button, summary';
 const SKY_PAPER_RENDERERS = [
   'renderIdentity', 'renderDecision', 'renderEvents', 'renderStatus',
   'renderVulnerabilities', 'renderAiConnection', 'renderExplanation', 'renderAction',
@@ -127,6 +127,18 @@ const skyPaperPolished = new WeakSet();
 
 const styleSkyPaperText = node => {
   const keepMargin = node.style.margin !== '' || node.style.marginTop !== '' || node.style.marginBottom !== '';
+  // 4일차: 버튼은 높이 44px·글자 16px. 이름·aria-label·disabled 는 그대로 두고,
+  // 색·배경·테두리·그림자는 건드리지 않아 원래 disabled 버튼의 흐린 모양과 제공 포커스 테두리(box-shadow)가 그대로 보입니다.
+  if (node.tagName === 'BUTTON') {
+    Object.assign(node.style, { minHeight: '44px', padding: '8px 16px', fontSize: '16px', borderRadius: '10px' });
+    if (node.disabled) node.style.cursor = 'not-allowed';
+    return;
+  }
+  // 펼치기 제목도 누르기 쉽게 높이 44px 이상
+  if (node.tagName === 'SUMMARY') {
+    Object.assign(node.style, { minHeight: '44px', padding: '10px 0', boxSizing: 'border-box', cursor: 'pointer' });
+    return;
+  }
   // 색을 직접 정한 제목(구역 제목 등)은 덮어쓰지 않습니다.
   if ((node.tagName === 'H3' || node.tagName === 'H4') && node.style.color !== '') return;
   if (node.tagName === 'H3') {
@@ -202,7 +214,7 @@ function createPaperSummaryCard({ glyph, name, level, text }) {
   const nameNode = document.createElement('p');
   nameNode.textContent = name;
   // 한국어 단어 중간에서 줄이 바뀌지 않게 띄어쓰기 단위로만 줄을 바꿉니다.
-  Object.assign(nameNode.style, { margin: '0', fontSize: '15px', fontWeight: '700', color: 'var(--accent, #0a58c2)', wordBreak: 'keep-all' });
+  Object.assign(nameNode.style, { margin: '0', fontSize: '16px', fontWeight: '700', color: 'var(--accent, #0a58c2)', wordBreak: 'keep-all' });
   head.append(tile, nameNode);
   const levelNode = document.createElement('p');
   levelNode.textContent = level;
@@ -232,7 +244,7 @@ function createSectionTitle(text, caption) {
   if (caption) {
     const note = document.createElement('p');
     note.textContent = caption;
-    Object.assign(note.style, { margin: '2px 0 0', fontSize: '14px', color: '#24446f' });
+    Object.assign(note.style, { margin: '2px 0 0', fontSize: '16px', color: '#24446f' });
     wrap.append(note);
   }
   return wrap;
@@ -353,9 +365,9 @@ function createNetworkCard() {
   }
   const card = createPaperSummaryCard({ glyph: '⌬', name: '네트워크 구성', level, text });
   card.dataset.studentPcMetric = 'network';
-  pcAddLine(card, '로컬 구성 요약이며 인터넷 접속이나 ZTNA 허용을 확인한 것은 아닙니다.', { fontSize: '14px', color: '#3d5373' });
-  pcAddLine(card, latest ? pcTimeLine(latest) : '잰 시각 없음', { fontSize: '14px', color: '#3d5373' });
-  if (pcTrend.busy) card.style.opacity = '0.6';
+  pcAddLine(card, '로컬 구성 요약이며 인터넷 접속이나 ZTNA 허용을 확인한 것은 아닙니다.', { fontSize: '16px', color: '#3d5373' });
+  pcAddLine(card, latest ? pcTimeLine(latest) : '잰 시각 없음', { fontSize: '16px', color: '#3d5373' });
+  pcMarkStale(card, latest);
   return card;
 }
 
@@ -374,9 +386,9 @@ function createEventsCard() {
   }
   const card = createPaperSummaryCard({ glyph: '☰', name: 'Windows 기록', level, text });
   card.dataset.studentPcMetric = 'events';
-  pcAddLine(card, '오류 건수는 침해·공격 탐지 결과가 아닙니다.', { fontSize: '14px', fontWeight: '600', color: '#24446f' });
-  pcAddLine(card, latest ? pcTimeLine(latest) : '잰 시각 없음', { fontSize: '14px', color: '#3d5373' });
-  if (pcTrend.busy) card.style.opacity = '0.6';
+  pcAddLine(card, '오류 건수는 침해·공격 탐지 결과가 아닙니다.', { fontSize: '16px', fontWeight: '600', color: '#24446f' });
+  pcAddLine(card, latest ? pcTimeLine(latest) : '잰 시각 없음', { fontSize: '16px', color: '#3d5373' });
+  pcMarkStale(card, latest);
   return card;
 }
 
@@ -451,8 +463,8 @@ function createPcTrendCard(definition) {
     else if (previous) diffText = '이전 대비 비교 불가 (이전 또는 지금 값이 확인 불가)';
     pcAddLine(card, diffText, { fontWeight: '600', color: '#24446f' });
   }
-  pcAddLine(card, latest ? pcTimeLine(latest) : '잰 시각 없음', { fontSize: '14px', color: '#3d5373' });
-  if (pcTrend.busy) card.style.opacity = '0.6';
+  pcAddLine(card, latest ? pcTimeLine(latest) : '잰 시각 없음', { fontSize: '16px', color: '#3d5373' });
+  pcMarkStale(card, latest);
   return card;
 }
 
@@ -470,9 +482,9 @@ function createFirewallCard() {
   }
   const card = createPaperSummaryCard({ glyph: '⛨', name: 'Windows 방화벽', level, text });
   card.dataset.studentPcMetric = 'firewall';
-  pcAddLine(card, '켜짐은 방화벽 설정 상태일 뿐, PC가 안전하다는 판정은 아닙니다.', { fontSize: '14px', color: '#3d5373' });
-  pcAddLine(card, latest ? pcTimeLine(latest) : '잰 시각 없음', { fontSize: '14px', color: '#3d5373' });
-  if (pcTrend.busy) card.style.opacity = '0.6';
+  pcAddLine(card, '켜짐은 방화벽 설정 상태일 뿐, PC가 안전하다는 판정은 아닙니다.', { fontSize: '16px', color: '#3d5373' });
+  pcAddLine(card, latest ? pcTimeLine(latest) : '잰 시각 없음', { fontSize: '16px', color: '#3d5373' });
+  pcMarkStale(card, latest);
   return card;
 }
 
@@ -527,7 +539,7 @@ function createPcTrendChartBox(definition) {
   Object.assign(box.style, { background: '#ffffff', border: '1px solid #d6e6f7', borderRadius: '14px', padding: '10px 12px' });
   const label = document.createElement('p');
   label.textContent = `${definition.name} (${definition.scaleLabel})`;
-  Object.assign(label.style, { margin: '0', fontSize: '14px', fontWeight: '700', color: 'var(--accent, #0a58c2)' });
+  Object.assign(label.style, { margin: '0', fontSize: '16px', fontWeight: '700', color: 'var(--accent, #0a58c2)' });
   box.append(label, createPcTrendChart(definition));
   return box;
 }
@@ -545,7 +557,7 @@ function pcRecentText(record) {
 
 function createPcTrendTable() {
   const table = document.createElement('table');
-  Object.assign(table.style, { width: '100%', borderCollapse: 'collapse', fontSize: '14px', marginTop: '8px' });
+  Object.assign(table.style, { width: '100%', borderCollapse: 'collapse', fontSize: '16px', marginTop: '8px' });
   const head = document.createElement('tr');
   for (const label of ['잰 시각', 'CPU 사용률', '메모리 사용량', '디스크 남은 공간', 'Windows 방화벽', '네트워크', 'Windows 기록(24시간)']) {
     const cell = document.createElement('th');
@@ -585,32 +597,108 @@ function createPcTrendTable() {
   return scroller;
 }
 
-// 화면 갱신: 버튼·체크박스는 그대로 두고(키보드 위치 유지) 글자·카드·그래프·기록만 다시 만듭니다.
+// 4일차: 측정 중에는 카드를 흐리게 하고 "직전 값 (시각)"을 붙여 새 값처럼 보이지 않게 합니다.
+function pcMarkStale(card, latest) {
+  if (!pcTrend.busy || !latest) return;
+  card.style.opacity = '0.55';
+  const badge = document.createElement('p');
+  badge.textContent = `직전 값 (${latest.measuredAt ? pcClock(latest.measuredAt) : `요청 ${pcClock(latest.requestedAt)}`})`;
+  Object.assign(badge.style, { margin: '6px 0 0', fontSize: '16px', fontWeight: '700', color: '#3d5373' });
+  card.firstChild?.after(badge);
+}
+
+// ---------- 4일차: 오류 상자(최근 측정에 확인 불가가 있을 때만, 실패 항목과 다음 할 일) ----------
+const PC_ALL_ITEMS = [
+  ['cpu', 'CPU 사용률'], ['memory', '메모리 사용량'], ['disk', '디스크 남은 공간'],
+  ['firewall', 'Windows 방화벽'], ['network', '네트워크 구성'], ['events', 'Windows 기록'],
+];
+const PC_NEXT_STEPS = {
+  permission_denied: '관리자 권한이 필요할 수 있습니다. 설정은 바꾸지 않고 확인 불가로 둡니다.',
+  timeout: '잠시 뒤 「다시 조회」를 직접 누르세요.',
+  query_failed: '앱을 껐다 켠 뒤 다시 조회하세요.',
+  invalid_sample: 'CPU 표본이 한 번 어긋났을 수 있습니다. 잠시 뒤 「다시 조회」를 직접 누르세요.',
+  invalid_response: '응답 형식이 약속과 다릅니다. 시작 틀 버전을 담당자에게 확인하세요.',
+  cancelled: '조회가 취소됐습니다. 필요하면 「다시 조회」를 누르세요.',
+  unsupported: '이 항목은 Windows에서만 읽을 수 있습니다.',
+  network_error: '앱(로컬 서버)이 켜져 있는지 확인한 뒤 다시 조회하세요.',
+};
+const PC_NEXT_STEP_ALIASES = { contract_mismatch: 'invalid_response' };
+const pcNextStep = code => {
+  const key = String(code).toLowerCase();
+  const name = PC_NEXT_STEP_ALIASES[key] ?? key;
+  return PC_NEXT_STEPS[name] ?? '앱을 껐다 켠 뒤 다시 조회하고, 계속되면 담당자에게 알려 주세요.';
+};
+
+function renderPcErrors(box) {
+  const latest = pcTrend.records[pcTrend.records.length - 1];
+  const failed = latest ? PC_ALL_ITEMS.filter(([key]) => !latest[key]?.ok) : [];
+  box.replaceChildren();
+  // 측정 중이거나 모두 성공했으면 상자를 숨깁니다.
+  box.hidden = pcTrend.busy || failed.length === 0;
+  if (box.hidden) return;
+  const title = document.createElement('p');
+  title.textContent = `▲ 읽지 못한 항목 ${failed.length}개 (${pcRecentText(latest)})`;
+  Object.assign(title.style, { margin: '0 0 6px', fontWeight: '800', color: '#7a4700' });
+  const lines = document.createElement('ul');
+  const codes = [];
+  if (latest.failure) {
+    const line = document.createElement('li');
+    line.textContent = `모든 값을 읽지 못했습니다 (${latest.failure.code}): ${latest.failure.message}`;
+    lines.append(line);
+    codes.push(latest.failure.code);
+  } else {
+    for (const [key, name] of failed) {
+      const code = pcReasonCode(latest[key]);
+      const line = document.createElement('li');
+      line.textContent = `${name} 값을 읽지 못했습니다 (${code})`;
+      lines.append(line);
+      codes.push(code);
+    }
+  }
+  const nextTitle = document.createElement('p');
+  nextTitle.textContent = '다음 할 일';
+  Object.assign(nextTitle.style, { margin: '8px 0 4px', fontWeight: '700', color: '#7a4700' });
+  const steps = document.createElement('ul');
+  for (const step of new Set(codes.map(pcNextStep))) {
+    const item = document.createElement('li');
+    item.textContent = step;
+    steps.append(item);
+  }
+  const note = document.createElement('p');
+  note.textContent = '예시 값으로 채우지 않습니다. 다음 측정에서 모두 읽으면 이 상자는 사라집니다.';
+  note.style.margin = '6px 0 0';
+  box.append(title, lines, nextTitle, steps, note);
+}
+
+// 화면 갱신: 버튼·체크박스·펼치기 제목은 그대로 두고(키보드 위치 유지) 글자·카드·그래프·기록만 다시 만듭니다.
 function updatePcTrend() {
   const ui = pcTrend.ui;
   if (!ui) return;
-  ui.button.disabled = pcTrend.busy;
-  ui.button.textContent = pcTrend.busy ? '측정 중…' : '지금 측정';
+  // 4일차: 첫 측정 전 「지금 측정」, 측정한 뒤 「다시 조회」. 측정 중에는 aria-disabled 로 잠가 키보드 포커스를 잃지 않게 합니다.
+  ui.button.textContent = pcTrend.busy ? '새로 읽는 중…' : pcTrend.records.length ? '다시 조회' : '지금 측정';
+  ui.button.setAttribute('aria-disabled', pcTrend.busy ? 'true' : 'false');
+  ui.button.style.opacity = pcTrend.busy ? '0.6' : '';
+  ui.button.style.cursor = pcTrend.busy ? 'progress' : 'pointer';
   ui.auto.checked = pcTrend.auto;
   let status = pcTrend.records.length === 0 ? '아직 측정하지 않았습니다.' : `측정 ${pcTrend.records.length}번 기록됨 (최근 ${PC_TREND_LIMIT}번까지).`;
-  if (pcTrend.busy) status = '측정 중입니다. 아래 카드는 이전 측정값이며 새 값이 아닙니다.';
+  if (pcTrend.busy) status = '새로 읽는 중… 아래 카드는 직전 값이며 새 값이 아닙니다.';
   else if (pcTrend.auto) status += document.hidden ? ' 탭이 보이지 않아 자동 측정을 잠시 멈췄습니다.' : ` 자동 측정 켜짐: ${PC_TREND_INTERVAL_MS / 1000}초마다(이 탭이 보일 때만).`;
   ui.status.textContent = pcTrend.notice ? `${status} ${pcTrend.notice}` : status;
+  renderPcErrors(ui.errors);
   ui.cards.replaceChildren(...PC_TREND_METRICS.map(createPcTrendCard), createFirewallCard());
   ui.links.replaceChildren(createNetworkCard(), createEventsCard());
   ui.charts.replaceChildren(...PC_TREND_METRICS.map(createPcTrendChartBox));
   const latest = pcTrend.records[pcTrend.records.length - 1];
   ui.recent.textContent = `최근 결과: ${latest ? pcRecentText(latest) : '아직 측정하지 않았습니다.'}`;
-  ui.records.replaceChildren();
-  const summary = document.createElement('summary');
-  summary.textContent = `측정 기록 펼치기 (${pcTrend.records.length}번, 최신 먼저)`;
-  ui.records.append(summary);
+  // 펼치기 제목(summary)은 그대로 두고 글자만 바꿔, 키보드 포커스와 열림 상태가 유지되게 합니다.
+  ui.recordsSummary.textContent = `측정 기록 펼치기 (${pcTrend.records.length}번, 최신 먼저)`;
+  ui.recordsBody.replaceChildren();
   if (pcTrend.records.length === 0) {
     const empty = document.createElement('p');
     empty.textContent = '아직 기록이 없습니다.';
-    ui.records.append(empty);
+    ui.recordsBody.append(empty);
   } else {
-    ui.records.append(createPcTrendTable());
+    ui.recordsBody.append(createPcTrendTable());
   }
 }
 
@@ -649,7 +737,7 @@ async function measurePcTrend() {
   if (record.failure && pcTrend.auto) {
     // 실패하면 자동 측정을 끕니다. 자동으로 다시 시도하지 않습니다.
     pcTrend.auto = false;
-    pcTrend.notice = '조회에 실패해 자동 측정을 멈췄습니다. 필요하면 「지금 측정」을 직접 누르세요.';
+    pcTrend.notice = '조회에 실패해 자동 측정을 멈췄습니다. 필요하면 「다시 조회」를 직접 누르세요.';
   }
   schedulePcTrend();
   updatePcTrend();
@@ -666,16 +754,20 @@ function getPcTrendPanel() {
   panel.setAttribute('aria-label', '내 PC 추이');
   const heading = createSectionTitle('① 내 PC 추이 · 이 PC에서 잰 값', '회사 서버 없이도 이 PC에서 직접 잽니다.');
   const basis = document.createElement('p');
-  basis.textContent = '근거: 제공 「내 PC 상태」와 같은 조회(/api/pc/status)를 씁니다. 값을 재는 방법은 제공 기능이고, 기록·그래프·이전 값과의 차이·방화벽 요약은 내가 만든 부분입니다. 예시 값은 쓰지 않으며, 읽지 못한 값은 0이 아니라 확인 불가와 이유로 보여 줍니다.';
+  basis.textContent = '근거: 현재 값은 제공 「내 PC 상태」와 같은 조회(/api/pc/status)로 읽은 값이며, 재는 방법도 제공 기능입니다. 기록·추이 그래프·이전 대비 차이·오류 안내는 내가 만든 부분입니다. 예시 값은 쓰지 않으며, 읽지 못한 값은 0이 아니라 확인 불가와 이유로 보여 줍니다.';
   const controls = document.createElement('div');
   Object.assign(controls.style, { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px', margin: '4px 0 8px' });
   const button = document.createElement('button');
   button.type = 'button';
   button.textContent = '지금 측정';
-  button.addEventListener('click', () => { measurePcTrend(); });
+  // 측정 중(aria-disabled)에는 눌러도 무시합니다. measurePcTrend 도 측정 중이면 바로 돌아갑니다.
+  button.addEventListener('click', () => { if (!pcTrend.busy) measurePcTrend(); });
+  // 체크박스는 라벨 전체(높이 44px)를 눌러도 켜지고 꺼집니다.
   const autoLabel = document.createElement('label');
+  Object.assign(autoLabel.style, { display: 'inline-flex', alignItems: 'center', gap: '8px', minHeight: '44px', cursor: 'pointer' });
   const auto = document.createElement('input');
   auto.type = 'checkbox';
+  Object.assign(auto.style, { width: '20px', height: '20px', margin: '0', accentColor: 'var(--accent, #0a58c2)' });
   auto.addEventListener('change', () => {
     pcTrend.auto = auto.checked;
     pcTrend.notice = '';
@@ -686,6 +778,16 @@ function getPcTrendPanel() {
   controls.append(button, autoLabel);
   const status = document.createElement('p');
   status.setAttribute('aria-live', 'polite');
+  // 4일차: 오류 상자(버튼 바로 아래). 확인 불가가 없으면 숨깁니다.
+  const errors = document.createElement('div');
+  errors.dataset.studentPcErrors = 'v1';
+  errors.setAttribute('role', 'group');
+  errors.setAttribute('aria-label', '읽지 못한 항목과 다음 할 일');
+  Object.assign(errors.style, {
+    margin: '4px 0 12px', padding: '12px 16px', borderRadius: '12px',
+    background: '#fff4e0', border: '1px solid #e3b25c', borderLeft: '4px solid #9a5b00', color: '#1c2430',
+  });
+  errors.hidden = true;
   const cards = document.createElement('div');
   Object.assign(cards.style, { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '8px' });
   // 3일차: 연결과 기록(네트워크 구성 · Windows 기록). SDP 서버 상태는 ② 에 따로 둡니다.
@@ -701,10 +803,14 @@ function getPcTrendPanel() {
   Object.assign(recent.style, { margin: '12px 0 4px', fontWeight: '700', color: '#0d2b5e' });
   const memoryNote = document.createElement('p');
   memoryNote.textContent = `기록은 이 화면 메모리에만 있고 새로고침하면 사라집니다(최근 ${PC_TREND_LIMIT}번까지). 그래프의 끊긴 점선 칸은 확인 불가입니다.`;
-  Object.assign(memoryNote.style, { margin: '4px 0 8px', fontSize: '14px', color: '#3d5373' });
+  Object.assign(memoryNote.style, { margin: '4px 0 8px', fontSize: '16px', color: '#3d5373' });
   const records = document.createElement('details');
-  panel.append(heading, basis, controls, status, cards, linksTitle, links, chartTitle, charts, recent, memoryNote, records);
-  pcTrend.ui = { panel, button, auto, status, cards, links, charts, recent, records };
+  const recordsSummary = document.createElement('summary');
+  const recordsBody = document.createElement('div');
+  records.append(recordsSummary, recordsBody);
+  // 순서: 제목 → 근거 → 버튼·체크박스 → 상태 문구 → 오류 상자 → 상태 카드 → 연결과 기록 → 추이 그래프 → 최근 결과 → 기록
+  panel.append(heading, basis, controls, status, errors, cards, linksTitle, links, chartTitle, charts, recent, memoryNote, records);
+  pcTrend.ui = { panel, button, auto, status, errors, cards, links, charts, recent, records, recordsSummary, recordsBody };
   if (!pcTrend.listening) {
     pcTrend.listening = true;
     // 탭이 안 보이면 멈추고, 다시 보이면 다음 측정을 예약만 합니다(바로 조회하지 않음).
@@ -1286,7 +1392,7 @@ export function createStudentView({ api } = {}) {
         // 화면 이름은 card.title 이 있으면 그것을 쓰고, data-student-summary 값(label)은 그대로 둡니다.
         const name = addText(head, 'p', card.title ?? label);
         name.style.margin = '0';
-        name.style.fontSize = '15px';
+        name.style.fontSize = '16px';
         name.style.fontWeight = '700';
         name.style.color = 'var(--accent, #0a58c2)';
         name.style.wordBreak = 'keep-all';
@@ -1304,7 +1410,7 @@ export function createStudentView({ api } = {}) {
       const nextSteps = [];
       if (modeKey === 'disconnected') {
         nextSteps.push('회사 서버(기존 엔진)에 연결하지 않은 기본 실행입니다. 로그인·기기·세션·기록은 연결 전까지 확인 불가로 보이며, 앱 고장이 아닙니다. 실제 연결에는 담당자가 발급하는 설정이 필요합니다.');
-        nextSteps.push('이 상태에서도 위 「내 PC 추이」의 「지금 측정」은 쓸 수 있습니다.');
+        nextSteps.push('이 상태에서도 위 「내 PC 추이」의 「지금 측정」(측정한 뒤에는 「다시 조회」)은 쓸 수 있습니다.');
       } else if (modeKey === 'demo') {
         nextSteps.push('지금 보이는 값은 예제 자료(demo)이며 실제 조회 결과가 아닙니다.');
       } else if (modeKey === 'unknown') {
