@@ -386,7 +386,7 @@ function createEventsCard() {
   }
   const card = createPaperSummaryCard({ glyph: '☰', name: 'Windows 기록', level, text });
   card.dataset.studentPcMetric = 'events';
-  pcAddLine(card, '오류 건수는 침해·공격 탐지 결과가 아닙니다.', { fontSize: '16px', fontWeight: '600', color: '#24446f' });
+  pcAddLine(card, '경고·오류 건수는 침해 판정이나 공격 탐지 결과가 아닙니다.', { fontSize: '16px', fontWeight: '600', color: '#24446f' });
   pcAddLine(card, latest ? pcTimeLine(latest) : '잰 시각 없음', { fontSize: '16px', color: '#3d5373' });
   pcMarkStale(card, latest);
   return card;

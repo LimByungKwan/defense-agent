@@ -10,9 +10,9 @@
 
 | 순서 | 할 일 | 명령·주소 | 상태 | 비고 |
 |---|---|---|---|---|
-| 0 | 필요한 것 준비 | Windows(PowerShell 5.1), Node.js 22~24(권장 24.19.0), Git | [확인함] | 이 PC: Node.js `v24.22.x`, `git version 2.54.0.windows.1` |
-| 1 | 받기 | `git clone https://github.com/LimByungKwan/defense-agent` 를 입력한 뒤 `cd defense-agent\on-client` | [확인함] | 2026-11-12 20:54 내 문서 폴더, 2026-11-15 10:42 내 문서 폴더의 새 폴더(run-test) 에서 성공(git 기록 기준). 학원 워크벤치 폴더라면 `cd 마르셀갈랑-방어전\on-client`. 저장소가 비공개면 열람 권한이 필요합니다. |
-| 2 | 켜기 | `on-client` 폴더의 **PowerShell 창**에서 `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1` | [확인함] | `케셰브가 켜졌습니다. 브라우저에서 http://127.0.0.1:5189/ 을 여세요.` 가 나오면 켜진 것입니다. 그 위에 나오는 다른 문구는 아래 「켜면 나오는 정상 문구」를 보세요. |
+| 0 | 필요한 것 준비 | Windows(PowerShell 5.1), Node.js 22~24(package.json 기준 24.19.0), Git. 준비 확인: `$PSVersionTable.PSVersion`, `node --version`, `git --version` | [확인함] | 이 PC: Node.js `v24.22.0`(기준과 다르지만 허용 범위), `git version 2.54.0.windows.1`. 없으면 설치하거나 담당자에게 문의합니다. |
+| 1 | 받기 | 새 폴더(예: run-test)를 만들고 **그 폴더에서 PowerShell 을 열어** `git clone https://github.com/LimByungKwan/defense-agent` → `cd defense-agent\on-client` | [확인함] | 2026-11-12 20:54 내 문서 폴더, 2026-11-15 10:42 내 문서 폴더의 새 폴더(run-test) 에서 성공(git 기록 기준). 학원 워크벤치 폴더라면 `cd 마르셀갈랑-방어전\on-client`. 저장소가 비공개면 열람 권한이 필요합니다. |
+| 2 | 켜기 | 켜기는 **`on-client` 폴더의 PowerShell 창**에서 `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1` | [확인함] | `케셰브가 켜졌습니다. 브라우저에서 http://127.0.0.1:5189/ 을 여세요.` 가 나오면 켜진 것입니다. 그 위에 나오는 다른 문구는 아래 「켜면 나오는 정상 문구」를 보세요. |
 | 3 | 브라우저로 열기 | `http://127.0.0.1:5189` | [확인함] | 다른 포트로 켰다면 주소의 숫자도 같게 바꿉니다. |
 | 4 | 첫 화면에서 볼 것 | 보호 현황 → 「학생 상태·알림 표시」의 **① 내 PC 추이** → 「지금 측정」(한 번 잰 뒤에는 「다시 조회」) | [확인함] | CPU·메모리·디스크·Windows 방화벽·네트워크 구성·Windows 기록이 이 PC에서 잰 값으로 나옵니다. |
 | 5 | 끄기 | 서버를 켠 PowerShell 창에서 `Ctrl+C` | [확인함] | 끈 뒤 브라우저를 새로고침하면 연결할 수 없다는 화면이 나옵니다. |
@@ -43,6 +43,8 @@
 ## 21단계 기록: 케셰브 실행 안내와 시스템 구성도
 
 > 아래는 2026-11-10 21단계 기록이며 이후 바뀐 내용은 위 안내 한 장이 기준입니다.
+>
+> 이 기록의 '미확인' 항목 중 PC 상태·다시 조회·실패 화면은 마무리 기간에 실제로 확인했고, 결과는 docs/FINAL_RECORD.md에 있음
 
 ## 목적과 현재 지원 범위
 
