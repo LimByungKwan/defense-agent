@@ -11,7 +11,7 @@
 | 순서 | 할 일 | 명령·주소 | 상태 | 비고 |
 |---|---|---|---|---|
 | 0 | 필요한 것 준비 | Windows(PowerShell 5.1), Node.js 22~24(권장 24.19.0), Git | [확인함] | 이 PC: Node.js `v24.22.x`, `git version 2.54.0.windows.1` |
-| 1 | 받기 | `git clone https://github.com/LimByungKwan/defense-agent` 를 입력한 뒤 `cd defense-agent\on-client` | [확인함] | 2026-11-12 20:54 `C:\Users\quann\Documents`, 2026-11-15 10:42 `C:\Users\quann\Documents\run-test` 에서 성공(git 기록 기준). 학원 워크벤치 폴더라면 `cd 마르셀갈랑-방어전\on-client`. 저장소가 비공개면 열람 권한이 필요합니다. |
+| 1 | 받기 | `git clone https://github.com/LimByungKwan/defense-agent` 를 입력한 뒤 `cd defense-agent\on-client` | [확인함] | 2026-11-12 20:54 내 문서 폴더, 2026-11-15 10:42 내 문서 폴더의 새 폴더(run-test) 에서 성공(git 기록 기준). 학원 워크벤치 폴더라면 `cd 마르셀갈랑-방어전\on-client`. 저장소가 비공개면 열람 권한이 필요합니다. |
 | 2 | 켜기 | `on-client` 폴더의 **PowerShell 창**에서 `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1` | [확인함] | `케셰브가 켜졌습니다. 브라우저에서 http://127.0.0.1:5189/ 을 여세요.` 가 나오면 켜진 것입니다. 그 위에 나오는 다른 문구는 아래 「켜면 나오는 정상 문구」를 보세요. |
 | 3 | 브라우저로 열기 | `http://127.0.0.1:5189` | [확인함] | 다른 포트로 켰다면 주소의 숫자도 같게 바꿉니다. |
 | 4 | 첫 화면에서 볼 것 | 보호 현황 → 「학생 상태·알림 표시」의 **① 내 PC 추이** → 「지금 측정」(한 번 잰 뒤에는 「다시 조회」) | [확인함] | CPU·메모리·디스크·Windows 방화벽·네트워크 구성·Windows 기록이 이 PC에서 잰 값으로 나옵니다. |
@@ -36,7 +36,7 @@
 | PowerShell 에서 README 한글이 `??蹂댁븞` 처럼 깨짐 | Windows PowerShell 5.1 의 기본 읽기 인코딩 | `Get-Content README.md -Encoding UTF8` | [확인함] |
 | 서버 창을 닫았더니 앱이 열리지 않음 | 그 PowerShell 창이 서버 자체라 창을 닫으면 앱도 꺼짐 | 쓰는 동안 창은 켜 둡니다. 다시 쓰려면 2번으로 켭니다. | [확인함] |
 | `appearance.json` 을 바꿨는데 화면이 그대로 | 바꾼 꾸밈이 아직 반영되지 않음 | `Ctrl+C` 로 껐다가 2번으로 다시 켠 뒤 브라우저를 새로고침합니다. | [확인함] |
-| 켤 때 `포트 5189 를 다른 프로그램이 쓰고 있습니다. 그 프로그램은 그대로 두고, 다른 번호로 실행해 주세요. 예: -Port 5190` 이 나오고 멈춤 | 다른 폴더(예: 원래 폴더)의 앱이 이미 5189 로 켜져 있음 | 켜져 있는 창은 그대로 두고 `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1 -Port 5190` 으로 켠 뒤 `http://127.0.0.1:5190` 을 엽니다. | [확인함] 문구 (2026-11-15 10:47, 5189 가 켜진 상태에서 같은 포트로 실행 → 서버를 띄우지 않고 멈춤, 기존 앱은 그대로). `-Port 5190` 으로 켜기는 확인 필요 |
+| 켤 때 `포트 5189 를 다른 프로그램이 쓰고 있습니다. 그 프로그램은 그대로 두고, 다른 번호로 실행해 주세요. 예: -Port 5190` 이 나오고 멈춤 | 다른 폴더(예: 원래 폴더)의 앱이 이미 5189 로 켜져 있음 | 켜져 있는 창은 그대로 두고 `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1 -Port 5190` 으로 켠 뒤 `http://127.0.0.1:5190` 을 엽니다. | [확인함] 문구 (2026-11-15 10:47, 5189 가 켜진 상태에서 같은 포트로 실행 → 서버를 띄우지 않고 멈춤, 기존 앱은 그대로). [확인함] `-Port 5190` 으로 켜서 화면이 뜨는 것까지 확인 |
 
 새 폴더 재현 기록: 2026-11-15 10:43 run-test 폴더에서 성공(받기·켜기·화면·끄기).
 
