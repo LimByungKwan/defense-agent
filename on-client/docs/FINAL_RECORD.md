@@ -8,7 +8,7 @@
 
 ## 제출 정보
 - 저장소 주소: https://github.com/LimByungKwan/defense-agent
-- 방어전 22단계 통과: 포털 방어전 상황실에서 "통과한 단계 10개"(13~22단계) 확인(2026-11-11)
+- 방어전 22단계 통과: 1~12단계는 이전 저장소(choi-bujang-secret-vault)에서 통과 / 13~22단계는 포털 방어전 상황실 '통과한 단계는 10개', '지금 열린 단계를 모두 마쳤습니다' 확인(2026-11-11)
 - 직전 확인 커밋: `3d4e1b3e77c22a59d39872836f9a9a0b213342ce` (2026-11-15 GitHub에 push 확인)
 - 제출 커밋: 이 문서를 담은 커밋이며 `git rev-parse HEAD` 로 확인합니다. 문서 안에 자기 커밋 번호를 적을 수 없어서 직전 커밋을 함께 적었습니다.
 - 포장: 하지 않음(`npm run package-app` 미실행)
@@ -91,6 +91,8 @@
 ## 3. 값의 종류 구분
 - 실제 조회(이 PC에서 `/api/pc/status`로 잰 값):
   - **2026-11-15 10:38:46, 원래 프로젝트 폴더, 내 브라우저에서 「지금 측정」**: CPU 사용률 12.0 %, 메모리 사용량 21.7 / 31.1 GiB, 디스크 남은 공간 582.6 / 930.3 GiB, Windows 방화벽 켜짐 3/3, 네트워크 구성 인터페이스 1개·IPv4 1개, Windows 기록(최근 24시간) 경고 20건·오류 13건
+  - 2026-11-15 11:31:44, 원래 프로젝트 폴더, 내 브라우저(검토 제출용 캡처와 같은 측정): CPU 23.8 %, 메모리 21.5 / 31.1 GiB(69.0 %), 디스크 남은 574.1 / 930.3 GiB, 방화벽 켜짐 3/3, 인터페이스 1개·IPv4 1개, 경고 41건·오류 13건
+  - 작업 관리자 비교(2026-11-15): 앱 11:44:34 CPU 13.0 %·메모리 16.0 / 31.1 GiB(51.4 %), 작업 관리자 11:45 CPU 2 %·메모리 52 %. 메모리는 거의 같음. CPU는 앱이 「다시 조회」를 누른 순간 0.2초만 재고 작업 관리자는 몇십 초 뒤 쉬는 상태를 봐서 차이가 남(재는 순간이 다름). 디스크·네트워크는 앱이 남은 공간·구성 개수를, 작업 관리자가 활동률·사용량을 보여 줘서 서로 비교할 수 없음.
   - 헤드리스 Chrome에서 같은 PC 실측(2026-11-12 22:28:23): CPU 21.7 %, 메모리 15.1 / 31.1 GiB, 디스크 남은 597.2 / 930.3 GiB, 방화벽 켜짐 3/3, 인터페이스 1개·IPv4 1개, 경고 29건·오류 23건
   - 화면에서는 「잰 시각 HH:MM:SS · 이 PC에서 잰 값」으로 표시합니다. Windows 기록 건수는 침해·공격 탐지 결과가 아니고, 네트워크 구성은 인터넷 접속이나 ZTNA 허용을 확인한 것이 아닙니다.
 - 설명용 예시(실제 조회 결과가 아닌 값): 헤드리스 시험에서 넣은 가짜 응답만 해당합니다(예: CPU 20 %·30 %·35 %, 메모리 8 / 16 GiB, 디스크 100 / 500 GiB, 경고 4100건·오류 900건, 공용(Public) 꺼짐, `permission_denied`·`timeout`·`TIMEOUT`). 코드와 화면에는 예시 값이 없습니다. 측정 전에는 숫자 없이 「아직 잰 값이 없습니다」만 나옵니다.
@@ -104,7 +106,7 @@
 - 실행 패키지 경로: 해당 없음(포장하지 않음, `npm run package-app` 미실행)
 - 소스와 패키지가 같은 커밋에서 나왔는지: 해당 없음(포장하지 않음)
 - 다시 실행한 명령:
-  - `git clone <GitHub 저장소 주소>` → `cd defense-agent\on-client` (저장소 주소는 `git remote get-url origin`으로 확인)
+  - `git clone https://github.com/LimByungKwan/defense-agent` → `cd defense-agent\on-client` (저장소 주소는 `git remote get-url origin`으로 확인)
   - `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1`
   - 원래 폴더 앱이 켜져 있을 때 `powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1 -Port 5190`
   - `npm.cmd run check`
@@ -139,7 +141,7 @@
   - Git Bash 안내는 확인한 방법만 쓰기 위해 「받기까지만 Git Bash, 켜기·끄기는 PowerShell」로 정했습니다.
 
 ## 7. 외부 SaaS를 쓴 경우에만
-- 서비스 이름과 출처: 사용하지 않음
+- 서비스 이름과 출처: 앱이 연결하는 외부 SaaS는 사용하지 않음(개발 도구로 쓴 Claude 채팅·Claude Code는 6절에 적음)
 - 통화:
 - 사용 기간:
 - 실제 비용:
@@ -156,7 +158,7 @@
 
 ## 같은 결과를 다시 만드는 실행 명령과 확인 순서
 ```powershell
-git clone <GitHub 저장소 주소>
+git clone https://github.com/LimByungKwan/defense-agent
 cd defense-agent\on-client
 npm.cmd run check
 powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\start-alekov.ps1
